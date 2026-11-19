@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícono blanco de la notificación de reproducción (personaje de Kenny Music). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <group>
+        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="7" android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M22,58c0,-20 12,-34 28,-34s28,14 28,34c0,14 -12,24 -28,24S22,72 22,58z" />
+        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="7" android:strokeLineCap="round"
+            android:pathData="M18,56c0,-26 14,-40 32,-40s32,14 32,40" />
+        <path android:fillColor="#FFFFFFFF"
+            android:pathData="M44,57m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0M56,57m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+        <path android:fillColor="#FFFFFFFF"
+            android:pathData="M10,54h12v20h-12zM78,54h12v20h-12z" />
+    </group>
+</vector>

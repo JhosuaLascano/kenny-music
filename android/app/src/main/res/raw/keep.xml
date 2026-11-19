@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Recursos que solo se usan desde Dart (por nombre); sin esto R8 los borra en release. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_stat_kenny,@mipmap/ic_launcher" />

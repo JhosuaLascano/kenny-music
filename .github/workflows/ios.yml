@@ -1,0 +1,47 @@
+# Compila Kenny Music para iPhone en una Mac de GitHub y deja el archivo
+# KennyMusic.ipa listo para instalar con AltStore (AltStore lo firma con tu Apple ID).
+name: iOS (.ipa para AltStore)
+
+on:
+  workflow_dispatch: # botón "Run workflow" en la pestaña Actions
+  push:
+    branches: [main]
+    paths: ['lib/**', 'ios/**', 'assets/**', 'pubspec.yaml', 'pubspec.lock']
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Compilar (sin firmar)
+        run: flutter build ios --release --no-codesign
+
+      - name: Firmar ad-hoc (AltStore vuelve a firmar con tu Apple ID)
+        run: |
+          APP=build/ios/iphoneos/Runner.app
+          for f in "$APP"/Frameworks/*; do codesign -f -s - "$f"; done
+          codesign -f -s - "$APP"
+
+      - name: Empaquetar KennyMusic.ipa
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //; s/+.*//')
+          mkdir Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry "KennyMusic-v${VERSION}.ipa" Payload
+          echo "IPA=KennyMusic-v${VERSION}.ipa" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KennyMusic-iOS
+          path: ${{ env.IPA }}
+          retention-days: 30
