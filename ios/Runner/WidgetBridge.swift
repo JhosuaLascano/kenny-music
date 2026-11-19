@@ -9,7 +9,11 @@ import WidgetKit
 ///   ("prev", "toggle", "next").
 final class WidgetBridge: NSObject, FlutterPlugin {
   private var channel: FlutterMethodChannel?
+  // Todo lo pesado (achicar la portada, sacar su color) se hace en esta cola
+  // de fondo: así nunca frena la pantalla y funciona con la app en segundo plano.
+  private let work = DispatchQueue(label: "kenny.widget", qos: .utility)
   private var lastCover: String?
+  private var lastColor = "#B4441A"
 
   static func register(with registrar: FlutterPluginRegistrar) {
     let instance = WidgetBridge()
@@ -31,27 +35,32 @@ final class WidgetBridge: NSObject, FlutterPlugin {
       result(FlutterMethodNotImplemented)
       return
     }
-    let coverPath = args["cover"] as? String
-    let hasCover = saveCover(coverPath)
-    let data: [String: Any] = [
-      "title": args["title"] as? String ?? "Kenny Music",
-      "artist": args["artist"] as? String ?? "",
-      "playing": args["playing"] as? Bool ?? false,
-      "color": args["color"] as? String ?? "#B4441A",
-      "hasCover": hasCover,
-      "position": args["position"] as? Double ?? 0,
-      "duration": args["duration"] as? Double ?? 0,
-      "updatedAt": args["updatedAt"] as? Double ?? 0,
-    ]
-    if let json = try? JSONSerialization.data(withJSONObject: data),
-       let text = String(data: json, encoding: .utf8) {
-      UserDefaults(suiteName: SharedStore.group())?.set(text, forKey: SharedStore.dataKey)
+    result(nil)  // Flutter no espera: el resto se hace en segundo plano.
+    work.async { [self] in
+      let coverPath = args["cover"] as? String
+      let hasCover = saveCover(coverPath)
+      let data: [String: Any] = [
+        "title": args["title"] as? String ?? "Kenny Music",
+        "artist": args["artist"] as? String ?? "",
+        "playing": args["playing"] as? Bool ?? false,
+        "color": hasCover ? lastColor : "#B4441A",
+        "hasCover": hasCover,
+        "position": args["position"] as? Double ?? 0,
+        "duration": args["duration"] as? Double ?? 0,
+        "updatedAt": args["updatedAt"] as? Double ?? 0,
+      ]
+      if let json = try? JSONSerialization.data(withJSONObject: data),
+         let text = String(data: json, encoding: .utf8) {
+        UserDefaults(suiteName: SharedStore.group())?.set(text, forKey: SharedStore.dataKey)
+      }
+      DispatchQueue.main.async {
+        if #available(iOS 14.0, *) { WidgetCenter.shared.reloadAllTimelines() }
+      }
     }
-    if #available(iOS 14.0, *) { WidgetCenter.shared.reloadAllTimelines() }
-    result(nil)
   }
 
-  /// Copia la portada (achicada) al App Group para que el widget la lea.
+  /// Copia la portada (achicada) al App Group y calcula su color.
+  /// Se ejecuta siempre en la cola `work`.
   private func saveCover(_ path: String?) -> Bool {
     guard let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SharedStore.group())
     else { return false }
@@ -65,10 +74,35 @@ final class WidgetBridge: NSObject, FlutterPlugin {
     let side: CGFloat = 300
     let scale = side / max(img.size.width, img.size.height, 1)
     let size = CGSize(width: img.size.width * scale, height: img.size.height * scale)
-    let small = UIGraphicsImageRenderer(size: size).image { _ in img.draw(in: CGRect(origin: .zero, size: size)) }
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    let small = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+      img.draw(in: CGRect(origin: .zero, size: size))
+    }
     try? small.jpegData(compressionQuality: 0.85)?.write(to: dest)
+    lastColor = Self.backgroundColor(of: small)
     lastCover = path
     return true
+  }
+
+  /// Color promedio de la portada, algo más oscuro y vivo, como fondo.
+  private static func backgroundColor(of img: UIImage) -> String {
+    guard let cg = img.cgImage else { return "#B4441A" }
+    var px = [UInt8](repeating: 0, count: 4)
+    guard let ctx = CGContext(
+      data: &px, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+      space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return "#B4441A" }
+    ctx.interpolationQuality = .medium
+    ctx.draw(cg, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+    var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+    UIColor(red: CGFloat(px[0]) / 255, green: CGFloat(px[1]) / 255,
+            blue: CGFloat(px[2]) / 255, alpha: 1).getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+    let c = UIColor(hue: h, saturation: min(s * 1.15, 0.9),
+                    brightness: min(max(b * 0.7, 0.25), 0.5), alpha: 1)
+    var r: CGFloat = 0, g: CGFloat = 0, bl: CGFloat = 0
+    c.getRed(&r, green: &g, blue: &bl, alpha: &a)
+    return String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(bl * 255))
   }
 }
 

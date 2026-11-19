@@ -24,6 +24,9 @@ class LibraryStore extends ChangeNotifier {
   // Ajustes
   String bgStyle = 'blur'; // blur | grad | solid
   String homeBgStyle = 'grad'; // fondo del menú principal
+  int blurAmount = 60; // 0-100, desenfoque de la portada de fondo
+  int gradIntensity = 70; // 0-100, cuánto color tiene el degradado
+  String playerLayout = 'classic'; // classic | full | visual
   int accentIndex = 0;
 
   /// Solo cambia con el color de acento (la app entera escucha esto, no todo el store).
@@ -67,6 +70,9 @@ class LibraryStore extends ChangeNotifier {
         final s = j['settings'] as Map? ?? {};
         bgStyle = s['bgStyle'] as String? ?? bgStyle;
         homeBgStyle = s['homeBgStyle'] as String? ?? homeBgStyle;
+        blurAmount = (s['blurAmount'] as num?)?.toInt() ?? blurAmount;
+        gradIntensity = (s['gradIntensity'] as num?)?.toInt() ?? gradIntensity;
+        playerLayout = s['playerLayout'] as String? ?? playerLayout;
         accentIndex = (s['accentIndex'] as num?)?.toInt() ?? accentIndex;
         accentNotifier.value = accentIndex;
         crossfade = (s['crossfade'] as num?)?.toInt() ?? crossfade;
@@ -95,6 +101,9 @@ class LibraryStore extends ChangeNotifier {
       'settings': {
         'bgStyle': bgStyle,
         'homeBgStyle': homeBgStyle,
+        'blurAmount': blurAmount,
+        'gradIntensity': gradIntensity,
+        'playerLayout': playerLayout,
         'accentIndex': accentIndex,
         'crossfade': crossfade,
         'onlineLyrics': onlineLyrics,
@@ -376,6 +385,21 @@ class LibraryStore extends ChangeNotifier {
 
   void setBgStyle(String v) {
     bgStyle = v;
+    _changed();
+  }
+
+  void setBlurAmount(int v) {
+    blurAmount = v;
+    _changed();
+  }
+
+  void setGradIntensity(int v) {
+    gradIntensity = v;
+    _changed();
+  }
+
+  void setPlayerLayout(String v) {
+    playerLayout = v;
     _changed();
   }
 

@@ -1,12 +1,15 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app_state.dart';
-import 'cover_color.dart';
 
 /// Mantiene al día el widget de iPhone y recibe los toques de sus botones.
+///
+/// Importante: aquí no se procesan imágenes. En iPhone, con la app en segundo
+/// plano, el procesamiento de imágenes de Flutter queda en pausa; antes eso
+/// hacía que el widget no se actualizara hasta abrir la app. Ahora iOS
+/// achica la portada y calcula su color por su cuenta.
 class WidgetSync {
   static const _channel = MethodChannel('kenny/widget');
   static String? _lastKey;
@@ -28,7 +31,7 @@ class WidgetSync {
     audio.playbackState.listen((_) => _push());
   }
 
-  static Future<void> _push() async {
+  static void _push() {
     final song = audio.current;
     final playing = audio.playbackState.value.playing;
     // updatePosition cambia al cambiar de canción, pausar o adelantar.
@@ -37,28 +40,17 @@ class WidgetSync {
     if (key == _lastKey) return; // nada cambió
     _lastKey = key;
     final cover = song?.cover == null ? null : store.resolve(song!.cover!);
-    final base = await coverColor(cover, const Color(0xFFB4441A));
-    // Un poco más oscuro que la portada, como fondo del widget.
-    final hsl = HSLColor.fromColor(base);
-    final c = hsl
-        .withLightness((hsl.lightness * 0.85).clamp(0.18, 0.4))
-        .toColor();
-    final hex =
-        '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
-    try {
-      await _channel.invokeMethod('update', {
-        'title': song?.title ?? 'Kenny Music',
-        'artist': song?.artist ?? 'Pon una canción',
-        'playing': playing,
-        'cover': cover,
-        'color': hex,
-        'position': audio.position.inMilliseconds.toDouble(),
-        'duration': (audio.duration?.inMilliseconds ?? song?.durationMs ?? 0)
-            .toDouble(),
-        'updatedAt': DateTime.now().millisecondsSinceEpoch.toDouble(),
-      });
-    } catch (_) {
-      // Sin widget (por ejemplo, en el simulador): no pasa nada.
-    }
+    _channel
+        .invokeMethod('update', {
+          'title': song?.title ?? 'Kenny Music',
+          'artist': song?.artist ?? 'Pon una canción',
+          'playing': playing,
+          'cover': cover,
+          'position': audio.position.inMilliseconds.toDouble(),
+          'duration': (audio.duration?.inMilliseconds ?? song?.durationMs ?? 0)
+              .toDouble(),
+          'updatedAt': DateTime.now().millisecondsSinceEpoch.toDouble(),
+        })
+        .catchError((_) => null); // sin widget (simulador): no pasa nada
   }
 }

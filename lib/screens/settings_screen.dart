@@ -104,7 +104,7 @@ class SettingsScreen extends StatelessWidget {
             const SizedBox(height: 40),
             const Center(
               child: Text(
-                'Kenny Music 1.6.0',
+                'Kenny Music 1.7.1',
                 style: TextStyle(color: kMuted, fontSize: 12),
               ),
             ),
@@ -121,6 +121,68 @@ class SettingsScreen extends StatelessWidget {
 }
 
 /// Fondo del reproductor y color de acento (en Ajustes y en el menú "…").
+/// Regulador de 0 a 100 % con su nombre y valor.
+class _SliderRow extends StatelessWidget {
+  const _SliderRow({
+    required this.label,
+    required this.value,
+    required this.left,
+    required this.right,
+    required this.color,
+    required this.onChanged,
+  });
+  final String label;
+  final int value;
+  final String left;
+  final String right;
+  final Color color;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Text(
+                '$value %',
+                style: TextStyle(color: color, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Slider(
+            value: value.toDouble(),
+            min: 0,
+            max: 100,
+            onChanged: (v) => onChanged(v.round()),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(left, style: const TextStyle(color: kMuted, fontSize: 11)),
+              Text(right, style: const TextStyle(color: kMuted, fontSize: 11)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class ThemePicker extends StatelessWidget {
   const ThemePicker({super.key});
 
@@ -133,6 +195,25 @@ class ThemePicker extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const _Label('Estilo del reproductor'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final (id, label) in const [
+                  ('classic', 'Clásico'),
+                  ('full', 'Portada completa'),
+                  ('visual', 'Visualizador'),
+                ])
+                  ChoiceChip(
+                    label: Text(label),
+                    selected: store.playerLayout == id,
+                    showCheckmark: false,
+                    onSelected: (_) => store.setPlayerLayout(id),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 26),
             const _Label('Fondo del reproductor'),
             Row(
               children: [
@@ -149,6 +230,27 @@ class ThemePicker extends StatelessWidget {
                   if (id != 'solid') const SizedBox(width: 10),
                 ],
               ],
+            ),
+            const SizedBox(height: 18),
+            _SliderRow(
+              label: 'Desenfoque del fondo',
+              value: store.blurAmount,
+              left: 'Nítido',
+              right: 'Muy borroso',
+              color: accent.color,
+              onChanged: store.setBlurAmount,
+            ),
+            _SliderRow(
+              label: 'Intensidad del degradado',
+              value: store.gradIntensity,
+              left: 'Suave',
+              right: 'Color fuerte',
+              color: accent.color,
+              onChanged: store.setGradIntensity,
+            ),
+            const Text(
+              'Se aplican al reproductor, a la letra y al fondo del menú principal.',
+              style: TextStyle(color: kMuted, fontSize: 12),
             ),
             const SizedBox(height: 26),
             const _Label('Fondo del menú principal'),

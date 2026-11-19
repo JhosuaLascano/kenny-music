@@ -169,7 +169,30 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
     await _playIndex(start);
   }
 
-  Future<void> _playIndex(int i, {bool fade = false}) async {
+  // Cambios de canción en fila: uno a la vez, y si llegan varios seguidos
+  // (tocar "siguiente" muy rápido) solo se hace el último. Antes se abrían
+  // varias canciones a la vez y el reproductor podía quedar trabado.
+  Future<void> _lock = Future.value();
+  int _req = 0;
+
+  Future<void> _playIndex(int i, {bool fade = false}) {
+    final my = ++_req;
+    final prev = _lock;
+    final done = Completer<void>();
+    _lock = done.future;
+    return prev.then((_) async {
+      try {
+        if (my != _req) return; // ya llegó un pedido más nuevo
+        await _playIndexNow(i, fade: fade).timeout(const Duration(seconds: 8));
+      } catch (e) {
+        debugPrint('Cambio de canción falló: $e');
+      } finally {
+        done.complete();
+      }
+    });
+  }
+
+  Future<void> _playIndexNow(int i, {bool fade = false}) async {
     if (i < 0 || i >= _queue.length) return;
     final song = _queue[i];
     final path = store.resolve(song.path);
@@ -187,7 +210,7 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
       _index = i;
       final n = _nextIndex(i);
       if (n != null && _failStreak < _queue.length) {
-        return _playIndex(n);
+        return _playIndexNow(n);
       }
       await _p.stop();
       _broadcast();

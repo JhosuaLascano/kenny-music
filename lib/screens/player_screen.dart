@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:file_picker/file_picker.dart';
@@ -44,9 +46,12 @@ class PlayerBackground extends StatelessWidget {
       return ColoredBox(color: home ? kBg : const Color(0xFF1A1A1F));
     }
     if (style == 'blur' && coverFile != null) {
-      // Portada diminuta (12 px) estirada con suavizado: se ve difuminada sin
-      // usar un filtro de desenfoque (que en iPhone se recalcula en cada
-      // cuadro y podía trabar la app).
+      // Portada achicada y estirada con suavizado: se ve difuminada sin usar
+      // un filtro de desenfoque (que en iPhone se recalcula en cada cuadro y
+      // podía trabar la app). El regulador decide qué tan chica: más chica =
+      // más borrosa (0 % ≈ 160 px, 100 % ≈ 6 px).
+      final t = (store.blurAmount / 100).clamp(0.0, 1.0);
+      final px = (160 * math.pow(6 / 160, t)).round();
       return RepaintBoundary(
         child: Stack(
           fit: StackFit.expand,
@@ -56,7 +61,7 @@ class PlayerBackground extends StatelessWidget {
               child: Image.file(
                 File(coverFile),
                 fit: BoxFit.cover,
-                cacheWidth: 12,
+                cacheWidth: px,
                 filterQuality: FilterQuality.high,
                 gaplessPlayback: true,
               ),
@@ -69,18 +74,28 @@ class PlayerBackground extends StatelessWidget {
     // Degradado suave con el color de la portada (más claro arriba, oscuro abajo).
     return FutureBuilder<Color>(
       future: coverColor(coverFile, const Color(0xFF6B4A3A)),
+      initialData: cachedCoverColor(coverFile),
       builder: (context, snap) {
         final base = HSLColor.fromColor(snap.data ?? const Color(0xFF4A3A33));
-        // Más color: saturación casi completa de la portada.
+        // El regulador "Intensidad del degradado" decide cuánto color hay.
+        final k = (store.gradIntensity / 100).clamp(0.0, 1.0);
+        double lerp(double a, double b) => a + (b - a) * k;
         final top = base
-            .withSaturation((base.saturation * 1.1).clamp(0.0, 0.85))
-            .withLightness(home ? 0.3 : 0.42)
+            .withSaturation(
+              (base.saturation * lerp(0.35, 1.25)).clamp(0.0, lerp(0.35, 0.9)),
+            )
+            .withLightness(home ? lerp(0.2, 0.32) : lerp(0.26, 0.46))
             .toColor();
         final bottom = home
             ? kBg
             : base
-                  .withSaturation((base.saturation * 1.0).clamp(0.0, 0.8))
-                  .withLightness(0.2)
+                  .withSaturation(
+                    (base.saturation * lerp(0.3, 1.1)).clamp(
+                      0.0,
+                      lerp(0.3, 0.85),
+                    ),
+                  )
+                  .withLightness(lerp(0.1, 0.22))
                   .toColor();
         return AnimatedContainer(
           duration: const Duration(milliseconds: 600),
@@ -154,6 +169,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     ),
                   ),
                 ),
+                if (store.playerLayout == 'full') FullCoverLayer(song: song),
                 SafeArea(
                   child: song == null
                       ? Center(
@@ -248,44 +264,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
             ],
           ),
           const Spacer(flex: 3),
-          // Portada
-          LayoutBuilder(
-            builder: (context, c) {
-              final size = c.maxWidth.clamp(
-                0.0,
-                MediaQuery.sizeOf(context).height * 0.42,
-              );
-              return DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x66000000),
-                      blurRadius: 40,
-                      offset: Offset(0, 18),
-                    ),
-                  ],
-                ),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 380),
-                  switchInCurve: Curves.easeOutBack,
-                  transitionBuilder: (child, a) => FadeTransition(
-                    opacity: a,
-                    child: ScaleTransition(
-                      scale: Tween(begin: 0.92, end: 1.0).animate(a),
-                      child: child,
-                    ),
-                  ),
-                  child: CoverArt(
-                    key: ValueKey('${song.id}-${song.cover}'),
-                    song: song,
-                    size: size,
-                    radius: 14,
-                  ),
-                ),
-              );
-            },
-          ),
+          // Portada (cambia según el estilo del reproductor)
+          _Artwork(song: song),
           const Spacer(flex: 4),
           // Título, estrella y letra
           Row(
@@ -997,4 +977,248 @@ class _PreviewText extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Portada del reproductor según el estilo elegido en Ajustes.
+class _Artwork extends StatelessWidget {
+  const _Artwork({required this.song});
+  final Song song;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: store,
+      builder: (context, _) => LayoutBuilder(
+        builder: (context, c) {
+          final size = c.maxWidth.clamp(
+            0.0,
+            MediaQuery.sizeOf(context).height * 0.42,
+          );
+          switch (store.playerLayout) {
+            case 'full':
+              // La portada grande se dibuja detrás (FullCoverLayer); aquí
+              // solo se deja el espacio.
+              return SizedBox(height: size);
+            case 'visual':
+              return SizedBox(
+                height: size,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: accentOf(context).withValues(alpha: 0.45),
+                            blurRadius: 40,
+                            spreadRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: CoverArt(
+                          key: ValueKey('${song.id}-${song.cover}'),
+                          song: song,
+                          size: size * 0.62,
+                          radius: 0,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: size * 0.08),
+                    SizedBox(
+                      height: size * 0.22,
+                      width: double.infinity,
+                      child: const _Visualizer(),
+                    ),
+                  ],
+                ),
+              );
+            default:
+              return DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x66000000),
+                      blurRadius: 40,
+                      offset: Offset(0, 18),
+                    ),
+                  ],
+                ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 380),
+                  switchInCurve: Curves.easeOutBack,
+                  transitionBuilder: (child, a) => FadeTransition(
+                    opacity: a,
+                    child: ScaleTransition(
+                      scale: Tween(begin: 0.92, end: 1.0).animate(a),
+                      child: child,
+                    ),
+                  ),
+                  child: CoverArt(
+                    key: ValueKey('${song.id}-${song.cover}'),
+                    song: song,
+                    size: size,
+                    radius: 14,
+                  ),
+                ),
+              );
+          }
+        },
+      ),
+    );
+  }
+}
+
+/// Estilo "Portada completa": la portada ocupa toda la parte de arriba y se
+/// funde con el fondo hacia abajo.
+class FullCoverLayer extends StatelessWidget {
+  const FullCoverLayer({super.key, required this.song});
+  final Song? song;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = song?.cover;
+    if (c == null) return const SizedBox.shrink();
+    final h = MediaQuery.sizeOf(context).height;
+    return Positioned(
+      left: 0,
+      right: 0,
+      top: 0,
+      height: h * 0.62,
+      child: ShaderMask(
+        shaderCallback: (r) => const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.white, Colors.white, Colors.transparent],
+          stops: [0, 0.55, 1],
+        ).createShader(r),
+        blendMode: BlendMode.dstIn,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 500),
+          child: Image.file(
+            File(store.resolve(c)),
+            key: ValueKey(c),
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            cacheWidth: 900,
+            gaplessPlayback: true,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Barras que se mueven mientras suena la música (se calman al pausar).
+/// No analiza el sonido real: es un efecto visual al ritmo de la reproducción.
+class _Visualizer extends StatefulWidget {
+  const _Visualizer();
+
+  @override
+  State<_Visualizer> createState() => _VisualizerState();
+}
+
+class _VisualizerState extends State<_Visualizer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 6),
+  );
+  final _rnd = math.Random(7);
+  late final List<double> _speed = List.generate(
+    28,
+    (_) => 2 + _rnd.nextDouble() * 5,
+  );
+  late final List<double> _phase = List.generate(
+    28,
+    (_) => _rnd.nextDouble() * math.pi * 2,
+  );
+  double _energy = 0; // 0 = en pausa, 1 = sonando
+  StreamSubscription<PlaybackState>? _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _c.repeat();
+    _energy = audio.playbackState.value.playing ? 1 : 0;
+    _sub = audio.playbackState.listen((s) {
+      final e = s.playing ? 1.0 : 0.0;
+      if (e != _energy && mounted) setState(() => _energy = e);
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = accentOf(context);
+    return RepaintBoundary(
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(end: _energy),
+        duration: const Duration(milliseconds: 500),
+        builder: (context, energy, _) => AnimatedBuilder(
+          animation: _c,
+          builder: (context, _) => CustomPaint(
+            painter: _BarsPainter(
+              t: _c.value * 6,
+              energy: energy,
+              speed: _speed,
+              phase: _phase,
+              color: accent,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BarsPainter extends CustomPainter {
+  _BarsPainter({
+    required this.t,
+    required this.energy,
+    required this.speed,
+    required this.phase,
+    required this.color,
+  });
+  final double t;
+  final double energy;
+  final List<double> speed;
+  final List<double> phase;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final n = speed.length;
+    const gap = 4.0;
+    final w = (size.width - gap * (n - 1)) / n;
+    final paint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color.lerp(color, Colors.white, 0.35)!, color],
+      ).createShader(Offset.zero & size);
+    for (var i = 0; i < n; i++) {
+      final wave =
+          (math.sin(t * speed[i] + phase[i]) * 0.5 + 0.5) *
+          (0.6 + 0.4 * math.sin(t * 1.3 + i * 0.4).abs());
+      final h = size.height * (0.08 + 0.92 * wave * energy);
+      final r = RRect.fromRectAndRadius(
+        Rect.fromLTWH(i * (w + gap), size.height - h, w, h),
+        Radius.circular(w / 2),
+      );
+      canvas.drawRRect(r, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BarsPainter old) => true;
 }

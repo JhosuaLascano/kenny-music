@@ -53,3 +53,6 @@ Future<Color> coverColor(String? file, Color fallback) async {
     return fallback;
   }
 }
+
+/// El color ya calculado (si existe), para no parpadear al redibujar.
+Color? cachedCoverColor(String? file) => file == null ? null : _cache[file];

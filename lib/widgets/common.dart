@@ -473,10 +473,7 @@ class Glass extends StatelessWidget {
         borderRadius: r,
         child: BackdropFilter(
           // Vidrio esmerilado oscuro: difumina lo de atrás y aviva un poco el color.
-          filter: ImageFilter.compose(
-            outer: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-            inner: const ColorFilter.matrix(_saturate),
-          ),
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
           child: CustomPaint(
             foregroundPainter: LiquidRimPainter(radius: radius),
             child: DecoratedBox(
@@ -500,14 +497,6 @@ class Glass extends StatelessWidget {
       ),
     );
   }
-
-  /// Matriz de color que aumenta la saturación (×1.5) y aclara un poco.
-  static const List<double> _saturate = [
-    1.36, -0.32, -0.04, 0, 6, //
-    -0.11, 1.15, -0.04, 0, 6, //
-    -0.11, -0.32, 1.43, 0, 6, //
-    0, 0, 0, 1, 0, //
-  ];
 }
 
 /// Borde de luz y reflejos de la gota de agua.
