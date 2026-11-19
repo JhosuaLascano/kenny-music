@@ -31,7 +31,9 @@ class WidgetSync {
   static Future<void> _push() async {
     final song = audio.current;
     final playing = audio.playbackState.value.playing;
-    final key = '${song?.id}|${song?.cover}|$playing';
+    // updatePosition cambia al cambiar de canción, pausar o adelantar.
+    final upd = audio.playbackState.value.updatePosition.inSeconds;
+    final key = '${song?.id}|${song?.cover}|$playing|$upd';
     if (key == _lastKey) return; // nada cambió
     _lastKey = key;
     final cover = song?.cover == null ? null : store.resolve(song!.cover!);
@@ -50,6 +52,10 @@ class WidgetSync {
         'playing': playing,
         'cover': cover,
         'color': hex,
+        'position': audio.position.inMilliseconds.toDouble(),
+        'duration': (audio.duration?.inMilliseconds ?? song?.durationMs ?? 0)
+            .toDouble(),
+        'updatedAt': DateTime.now().millisecondsSinceEpoch.toDouble(),
       });
     } catch (_) {
       // Sin widget (por ejemplo, en el simulador): no pasa nada.

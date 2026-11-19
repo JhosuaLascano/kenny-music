@@ -25,6 +25,9 @@ class LibraryStore extends ChangeNotifier {
   String bgStyle = 'blur'; // blur | grad | solid
   String homeBgStyle = 'grad'; // fondo del menú principal
   int accentIndex = 0;
+
+  /// Solo cambia con el color de acento (la app entera escucha esto, no todo el store).
+  final accentNotifier = ValueNotifier<int>(0);
   int crossfade = 5; // segundos, 0 = apagado
   bool onlineLyrics = true;
 
@@ -65,6 +68,7 @@ class LibraryStore extends ChangeNotifier {
         bgStyle = s['bgStyle'] as String? ?? bgStyle;
         homeBgStyle = s['homeBgStyle'] as String? ?? homeBgStyle;
         accentIndex = (s['accentIndex'] as num?)?.toInt() ?? accentIndex;
+        accentNotifier.value = accentIndex;
         crossfade = (s['crossfade'] as num?)?.toInt() ?? crossfade;
         onlineLyrics = s['onlineLyrics'] as bool? ?? onlineLyrics;
       }
@@ -382,6 +386,7 @@ class LibraryStore extends ChangeNotifier {
 
   void setAccent(int i) {
     accentIndex = i;
+    accentNotifier.value = i;
     _changed();
   }
 

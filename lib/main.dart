@@ -38,11 +38,10 @@ class KennyMusicApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: store,
-      builder: (context, _) {
-        final accent =
-            accents[store.accentIndex.clamp(0, accents.length - 1)].color;
+    return ValueListenableBuilder<int>(
+      valueListenable: store.accentNotifier,
+      builder: (context, idx, _) {
+        final accent = accents[idx.clamp(0, accents.length - 1)].color;
         return MaterialApp(
           title: 'Kenny Music',
           debugShowCheckedModeBanner: false,

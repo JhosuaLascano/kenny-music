@@ -454,79 +454,137 @@ class Glass extends StatelessWidget {
     );
   }
 
-  /// Estilo "liquid glass": se ve lo de atrás (difuminado suave), con un
-  /// tinte claro, borde brillante y un reflejo arriba para que se distinga.
+  /// Estilo "gota de agua": lo de atrás se ve casi nítido y con colores más
+  /// vivos (como a través del agua), con un borde de luz, un reflejo arriba y
+  /// un brillo suave abajo para que se distinga del fondo.
   Widget _liquid(BorderRadius r) {
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: r,
         boxShadow: const [
           BoxShadow(
-            color: Color(0x47000000),
-            blurRadius: 22,
-            offset: Offset(0, 8),
+            color: Color(0x40000000),
+            blurRadius: 18,
+            offset: Offset(0, 6),
           ),
         ],
       ),
       child: ClipRRect(
         borderRadius: r,
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 7, sigmaY: 7),
-          child: Stack(
-            children: [
-              // Base: un poco oscura para que el texto blanco se lea siempre.
-              const Positioned.fill(
-                child: ColoredBox(color: Color(0x24000000)),
-              ),
-              // Tinte de vidrio claro.
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: r,
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0x38FFFFFF), Color(0x14FFFFFF)],
-                    ),
-                  ),
+          // Vidrio esmerilado oscuro: difumina lo de atrás y aviva un poco el color.
+          filter: ImageFilter.compose(
+            outer: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            inner: const ColorFilter.matrix(_saturate),
+          ),
+          child: CustomPaint(
+            foregroundPainter: LiquidRimPainter(radius: radius),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: r,
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0x8C2C2C31),
+                    Color(0x8C232327),
+                    Color(0x8C1C1C20),
+                  ],
+                  stops: [0, 0.6, 1],
                 ),
               ),
-              // Reflejo de luz en la parte de arriba.
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: r,
-                      gradient: const LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.center,
-                        colors: [Color(0x40FFFFFF), Color(0x00FFFFFF)],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              // Borde brillante.
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: r,
-                      border: Border.all(
-                        color: const Color(0x80FFFFFF),
-                        width: 1.2,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              child,
-            ],
+              child: child,
+            ),
           ),
         ),
       ),
     );
   }
+
+  /// Matriz de color que aumenta la saturación (×1.5) y aclara un poco.
+  static const List<double> _saturate = [
+    1.36, -0.32, -0.04, 0, 6, //
+    -0.11, 1.15, -0.04, 0, 6, //
+    -0.11, -0.32, 1.43, 0, 6, //
+    0, 0, 0, 1, 0, //
+  ];
+}
+
+/// Borde de luz y reflejos de la gota de agua.
+class LiquidRimPainter extends CustomPainter {
+  LiquidRimPainter({required this.radius, this.strong = false});
+  final double radius;
+  final bool strong;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final rr = RRect.fromRectAndRadius(
+      rect.deflate(0.7),
+      Radius.circular(radius),
+    );
+
+    // Borde: brilla arriba a la izquierda, se apaga y vuelve a brillar abajo a la derecha.
+    final rim = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strong ? 1.8 : 1.3
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Colors.white.withValues(alpha: strong ? 0.95 : 0.32),
+          Colors.white.withValues(alpha: strong ? 0.12 : 0.14),
+          Colors.white.withValues(alpha: strong ? 0.12 : 0.14),
+          Colors.white.withValues(alpha: strong ? 0.6 : 0.22),
+        ],
+        stops: const [0, 0.35, 0.7, 1],
+      ).createShader(rect);
+    canvas.drawRRect(rr, rim);
+
+    // Reflejo ovalado arriba (como la luz sobre una gota).
+    final hl = Rect.fromLTWH(
+      size.width * 0.08,
+      size.height * 0.08,
+      size.width * (strong ? 0.5 : 0.42),
+      size.height * 0.32,
+    );
+    canvas.save();
+    canvas.clipRRect(rr);
+    canvas.drawOval(
+      hl,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            Colors.white.withValues(alpha: strong ? 0.42 : 0.07),
+            Colors.white.withValues(alpha: 0),
+          ],
+        ).createShader(hl),
+    );
+    // Brillo suave abajo (la luz que atraviesa la gota).
+    final low = Rect.fromLTWH(
+      0,
+      size.height * 0.7,
+      size.width,
+      size.height * 0.3,
+    );
+    canvas.drawRect(
+      low,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white.withValues(alpha: 0),
+            Colors.white.withValues(alpha: strong ? 0.2 : 0.03),
+          ],
+        ).createShader(low),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(LiquidRimPainter old) =>
+      old.radius != radius || old.strong != strong;
 }
 
 /// Barra de navegación de vidrio transparente. Al deslizar el dedo aparece
@@ -620,40 +678,27 @@ class _GlassNavBarState extends State<GlassNavBar> {
                   top: (_h - bh) / 2,
                   width: bw,
                   height: bh,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOut,
+                  child: DecoratedBox(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(bh / 2),
-                      gradient: drop
-                          ? RadialGradient(
-                              center: const Alignment(-0.35, -0.45),
-                              radius: 1.1,
-                              colors: [
-                                const Color(0x59FFFFFF),
-                                const Color(0x12FFFFFF),
-                                const Color(0x05FFFFFF),
-                              ],
-                              stops: const [0, 0.45, 1],
-                            )
-                          : const LinearGradient(
-                              colors: [Color(0x1FFFFFFF), Color(0x14FFFFFF)],
-                            ),
-                      border: Border.all(
-                        color: drop
-                            ? const Color(0xB3FFFFFF)
-                            : const Color(0x1FFFFFFF),
-                        width: drop ? 1.4 : 0.8,
-                      ),
+                      color: drop
+                          ? const Color(0x14FFFFFF)
+                          : const Color(0x66000000),
                       boxShadow: drop
                           ? const [
                               BoxShadow(
-                                color: Color(0x4D000000),
-                                blurRadius: 20,
+                                color: Color(0x40000000),
+                                blurRadius: 18,
                                 offset: Offset(0, 6),
                               ),
                             ]
                           : const [],
+                    ),
+                    // La gota: borde de luz y reflejos (más fuertes al deslizar).
+                    child: CustomPaint(
+                      painter: drop
+                          ? LiquidRimPainter(radius: bh / 2, strong: true)
+                          : null,
                     ),
                   ),
                 ),

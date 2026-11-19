@@ -9,9 +9,14 @@ struct NowPlaying: Decodable {
   let playing: Bool
   let color: String  // "#RRGGBB" sacado de la portada
   let hasCover: Bool
+  // Para la barra de progreso (milisegundos).
+  let position: Double?
+  let duration: Double?
+  let updatedAt: Double?
 
   static let sample = NowPlaying(
-    title: "Kenny Music", artist: "Pon una canción", playing: false, color: "#B4441A", hasCover: false)
+    title: "Kenny Music", artist: "Pon una canción", playing: false, color: "#B4441A",
+    hasCover: false, position: 0, duration: 0, updatedAt: 0)
 }
 
 enum SharedStore {
@@ -67,6 +72,11 @@ extension Color {
   }
 }
 
+func mmss(_ seconds: Double) -> String {
+  let s = max(0, Int(seconds.rounded()))
+  return String(format: "%d:%02d", s / 60, s % 60)
+}
+
 // MARK: - Línea de tiempo
 
 struct Entry: TimelineEntry {
@@ -84,12 +94,12 @@ struct Provider: TimelineProvider {
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> Void) {
     let e = Entry(date: Date(), data: SharedStore.load() ?? .sample, cover: SharedStore.cover())
-    // La app avisa al widget cada vez que cambia la canción o se pausa.
+    // La app avisa al widget cada vez que cambia la canción, se pausa o se adelanta.
     completion(Timeline(entries: [e], policy: .never))
   }
 }
 
-// MARK: - Vista
+// MARK: - Vista (diseño A: portada difuminada + progreso)
 
 struct ControlButton: View {
   let action: String
@@ -99,8 +109,8 @@ struct ControlButton: View {
   var body: some View {
     let icon = Image(systemName: symbol)
       .font(.system(size: size, weight: .semibold))
-      .foregroundStyle(.white.opacity(0.88))
-      .frame(maxWidth: .infinity, minHeight: 36)
+      .foregroundStyle(.white)
+      .frame(maxWidth: .infinity, minHeight: 30)
     if #available(iOS 17.0, *) {
       Button(intent: KennyControlIntent(action: action)) { icon }
         .buttonStyle(.plain)
@@ -110,11 +120,67 @@ struct ControlButton: View {
   }
 }
 
+/// Barra de progreso: si está sonando avanza sola (sin que la app la toque).
+struct ProgressRow: View {
+  let data: NowPlaying
+
+  var body: some View {
+    let dur = (data.duration ?? 0) / 1000
+    let pos = (data.position ?? 0) / 1000
+    VStack(spacing: 3) {
+      if data.playing, dur > 0, let at = data.updatedAt, at > 0 {
+        let start = Date(timeIntervalSince1970: at / 1000 - pos)
+        let end = start.addingTimeInterval(dur)
+        ProgressView(timerInterval: start...end, countsDown: false) {
+          EmptyView()
+        } currentValueLabel: {
+          EmptyView()
+        }
+        .progressViewStyle(.linear)
+        .tint(.white)
+        HStack {
+          Text(start, style: .timer).monospacedDigit()
+          Spacer()
+          Text(mmss(dur))
+        }
+      } else {
+        ProgressView(value: dur > 0 ? min(pos / dur, 1) : 0)
+          .progressViewStyle(.linear)
+          .tint(.white)
+        HStack {
+          Text(mmss(pos))
+          Spacer()
+          Text(mmss(dur))
+        }
+      }
+    }
+    .font(.system(size: 10, weight: .medium))
+    .foregroundStyle(.white.opacity(0.65))
+  }
+}
+
+struct BlurredBackground: View {
+  let entry: Entry
+
+  var body: some View {
+    ZStack {
+      Color(hex: entry.data.color)
+      if let img = entry.cover {
+        Image(uiImage: img)
+          .resizable()
+          .scaledToFill()
+          .blur(radius: 22)
+          .scaleEffect(1.3)
+      }
+      Color.black.opacity(0.28)
+    }
+  }
+}
+
 struct KennyWidgetView: View {
   let entry: Entry
 
   var body: some View {
-    let base = Color(hex: entry.data.color)
     let content = HStack(spacing: 14) {
       Group {
         if let img = entry.cover {
@@ -128,34 +194,40 @@ struct KennyWidgetView: View {
           }
         }
       }
-      .frame(width: 118, height: 118)
+      .frame(width: 116, height: 116)
       .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+      .shadow(color: .black.opacity(0.35), radius: 8, y: 4)
 
-      VStack(alignment: .leading, spacing: 2) {
+      VStack(alignment: .leading, spacing: 0) {
+        Text("KENNY MUSIC")
+          .font(.system(size: 10, weight: .bold))
+          .kerning(0.8)
+          .foregroundStyle(.white.opacity(0.6))
         Text(entry.data.title)
-          .font(.system(size: 17, weight: .bold))
+          .font(.system(size: 16, weight: .bold))
           .foregroundStyle(.white)
           .lineLimit(1)
+          .padding(.top, 3)
         Text(entry.data.artist)
-          .font(.system(size: 15))
-          .foregroundStyle(.white.opacity(0.62))
+          .font(.system(size: 13))
+          .foregroundStyle(.white.opacity(0.68))
           .lineLimit(1)
-        Spacer(minLength: 6)
+        Spacer(minLength: 4)
+        ProgressRow(data: entry.data)
+        Spacer(minLength: 4)
         HStack(spacing: 0) {
-          ControlButton(action: "prev", symbol: "backward.fill", size: 20)
-          ControlButton(action: "toggle", symbol: entry.data.playing ? "pause.fill" : "play.fill", size: 26)
-          ControlButton(action: "next", symbol: "forward.fill", size: 20)
+          ControlButton(action: "prev", symbol: "backward.fill", size: 18)
+          ControlButton(action: "toggle", symbol: entry.data.playing ? "pause.fill" : "play.fill", size: 24)
+          ControlButton(action: "next", symbol: "forward.fill", size: 18)
         }
       }
-      .padding(.vertical, 6)
+      .padding(.vertical, 2)
     }
-    let bg = LinearGradient(
-      colors: [base, base.opacity(0.75)], startPoint: .topLeading, endPoint: .bottomTrailing)
 
     if #available(iOS 17.0, *) {
-      content.containerBackground(for: .widget) { bg }
+      content.containerBackground(for: .widget) { BlurredBackground(entry: entry) }
     } else {
-      content.padding().background(bg)
+      content.padding().background(BlurredBackground(entry: entry))
     }
   }
 }
@@ -167,7 +239,7 @@ struct KennyWidget: Widget {
       KennyWidgetView(entry: entry)
     }
     .configurationDisplayName("Kenny Music")
-    .description("La canción que suena, con sus controles.")
+    .description("La canción que suena, con su progreso y controles.")
     .supportedFamilies([.systemMedium])
   }
 }

@@ -39,6 +39,9 @@ final class WidgetBridge: NSObject, FlutterPlugin {
       "playing": args["playing"] as? Bool ?? false,
       "color": args["color"] as? String ?? "#B4441A",
       "hasCover": hasCover,
+      "position": args["position"] as? Double ?? 0,
+      "duration": args["duration"] as? Double ?? 0,
+      "updatedAt": args["updatedAt"] as? Double ?? 0,
     ]
     if let json = try? JSONSerialization.data(withJSONObject: data),
        let text = String(data: json, encoding: .utf8) {

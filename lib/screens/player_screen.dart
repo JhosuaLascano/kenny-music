@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:ui';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:file_picker/file_picker.dart';
@@ -45,26 +44,21 @@ class PlayerBackground extends StatelessWidget {
       return ColoredBox(color: home ? kBg : const Color(0xFF1A1A1F));
     }
     if (style == 'blur' && coverFile != null) {
-      // Imagen chiquita + desenfoque: se ve igual y es mucho más liviano.
+      // Portada diminuta (12 px) estirada con suavizado: se ve difuminada sin
+      // usar un filtro de desenfoque (que en iPhone se recalcula en cada
+      // cuadro y podía trabar la app).
       return RepaintBoundary(
         child: Stack(
           fit: StackFit.expand,
           children: [
-            ImageFiltered(
-              imageFilter: ImageFilter.blur(
-                sigmaX: 40,
-                sigmaY: 40,
-                tileMode: TileMode.decal,
-              ),
-              child: Transform.scale(
-                scale: 1.4,
-                child: Image.file(
-                  File(coverFile),
-                  fit: BoxFit.cover,
-                  cacheWidth: 64,
-                  filterQuality: FilterQuality.medium,
-                  gaplessPlayback: true,
-                ),
+            Transform.scale(
+              scale: 1.3,
+              child: Image.file(
+                File(coverFile),
+                fit: BoxFit.cover,
+                cacheWidth: 12,
+                filterQuality: FilterQuality.high,
+                gaplessPlayback: true,
               ),
             ),
             ColoredBox(color: Colors.black.withValues(alpha: home ? 0.6 : dim)),
@@ -77,15 +71,16 @@ class PlayerBackground extends StatelessWidget {
       future: coverColor(coverFile, const Color(0xFF6B4A3A)),
       builder: (context, snap) {
         final base = HSLColor.fromColor(snap.data ?? const Color(0xFF4A3A33));
+        // Más color: saturación casi completa de la portada.
         final top = base
-            .withSaturation((base.saturation * 0.55).clamp(0.0, 0.45))
-            .withLightness(home ? 0.26 : 0.36)
+            .withSaturation((base.saturation * 1.1).clamp(0.0, 0.85))
+            .withLightness(home ? 0.3 : 0.42)
             .toColor();
         final bottom = home
             ? kBg
             : base
-                  .withSaturation((base.saturation * 0.5).clamp(0.0, 0.4))
-                  .withLightness(0.14)
+                  .withSaturation((base.saturation * 1.0).clamp(0.0, 0.8))
+                  .withLightness(0.2)
                   .toColor();
         return AnimatedContainer(
           duration: const Duration(milliseconds: 600),
@@ -447,19 +442,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       onTap: audio.toggleShuffle,
                       child: Icon(
                         CupertinoIcons.shuffle,
-                        size: 24,
+                        size: 26,
                         color: audio.shuffleOn ? accent : Colors.white70,
                       ),
                     ),
                     _Press(
                       tooltip: 'Anterior',
                       onTap: audio.skipToPrevious,
-                      child: const Icon(CupertinoIcons.backward_fill, size: 32),
+                      child: const Icon(CupertinoIcons.backward_fill, size: 38),
                     ),
                     _Press(
                       tooltip: playing ? 'Pausar' : 'Reproducir',
                       onTap: audio.togglePlay,
-                      width: 88,
+                      width: 96,
                       child: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 150),
                         transitionBuilder: (c, a) => FadeTransition(
@@ -470,27 +465,27 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             ? const Icon(
                                 CupertinoIcons.pause_fill,
                                 key: ValueKey(true),
-                                size: 44,
+                                size: 54,
                               )
                             : const Padding(
                                 key: ValueKey(false),
                                 // el triángulo se ve corrido a la izquierda: se compensa un poco
-                                padding: EdgeInsets.only(left: 4),
-                                child: Icon(CupertinoIcons.play_fill, size: 44),
+                                padding: EdgeInsets.only(left: 5),
+                                child: Icon(CupertinoIcons.play_fill, size: 54),
                               ),
                       ),
                     ),
                     _Press(
                       tooltip: 'Siguiente',
                       onTap: audio.skipToNext,
-                      child: const Icon(CupertinoIcons.forward_fill, size: 32),
+                      child: const Icon(CupertinoIcons.forward_fill, size: 38),
                     ),
                     _Press(
                       tooltip: 'Cola de reproducción',
                       onTap: () => _showQueue(context),
                       child: const Icon(
                         CupertinoIcons.music_note_list,
-                        size: 24,
+                        size: 26,
                         color: Colors.white70,
                       ),
                     ),

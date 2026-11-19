@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 
@@ -20,7 +22,9 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.viewPaddingOf(context).bottom;
+    // Lo justo para no tapar los botones de Android ni la rayita del iPhone.
+    final pad = MediaQuery.viewPaddingOf(context).bottom;
+    final bottom = Platform.isIOS ? (pad - 14).clamp(8.0, 40.0) : pad + 4;
     return PopScope(
       canPop: _tab == 0,
       onPopInvokedWithResult: (didPop, _) {
@@ -66,13 +70,13 @@ class _HomeShellState extends State<HomeShell> {
             Positioned(
               left: 16,
               right: 16,
-              bottom: 16 + bottom + 62 + 10,
+              bottom: bottom + 62 + 8,
               child: const MiniPlayer(),
             ),
             Positioned(
               left: 16,
               right: 16,
-              bottom: 16 + bottom,
+              bottom: bottom,
               child: GlassNavBar(
                 index: _tab,
                 onTap: (i) => setState(() => _tab = i),

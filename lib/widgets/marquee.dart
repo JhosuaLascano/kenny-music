@@ -22,12 +22,25 @@ class _MarqueeState extends State<Marquee> with SingleTickerProviderStateMixin {
     super.dispose();
   }
 
-  void _setup(double textW) {
-    if (textW == _textW && _c.isAnimating) return;
-    _textW = textW;
-    final moveSecs = (textW + _gap) / 35;
-    _c.duration = Duration(milliseconds: ((moveSecs + _pause) * 1000).round());
-    _c.repeat();
+  Duration _durFor(double textW) =>
+      Duration(milliseconds: ((((textW + _gap) / 35) + _pause) * 1000).round());
+
+  /// Arranca o detiene la animación DESPUÉS de dibujar (nunca durante el
+  /// dibujo: en iPhone eso podía trabar la app).
+  void _schedule(double? textW) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (textW == null) {
+        if (_c.isAnimating) _c.stop();
+        if (_c.value != 0) _c.value = 0;
+        _textW = 0;
+        return;
+      }
+      if (textW == _textW && _c.isAnimating) return;
+      _textW = textW;
+      _c.duration = _durFor(textW);
+      _c.repeat();
+    });
   }
 
   @override
@@ -42,12 +55,11 @@ class _MarqueeState extends State<Marquee> with SingleTickerProviderStateMixin {
         )..layout();
         final h = tp.height;
         if (tp.width <= box.maxWidth) {
-          if (_c.isAnimating) _c.stop();
-          _c.value = 0;
+          if (_textW != 0 || _c.isAnimating) _schedule(null);
           return Text(widget.text, maxLines: 1, style: widget.style);
         }
-        _setup(tp.width);
-        final total = _c.duration!.inMilliseconds / 1000;
+        if (tp.width != _textW || !_c.isAnimating) _schedule(tp.width);
+        final total = _durFor(tp.width).inMilliseconds / 1000;
         return SizedBox(
           height: h,
           child: ClipRect(
