@@ -17,8 +17,13 @@ class LibraryStore extends ChangeNotifier {
   final List<String> recents = [];
   final Map<String, int> plays = {};
 
+  /// Tiempo escuchado (ms): total y por semana (clave = lunes de esa semana).
+  int listenMs = 0;
+  final Map<String, int> weekMs = {};
+
   // Ajustes
   String bgStyle = 'blur'; // blur | grad | solid
+  String homeBgStyle = 'grad'; // fondo del menú principal
   int accentIndex = 0;
   int crossfade = 5; // segundos, 0 = apagado
   bool onlineLyrics = true;
@@ -49,11 +54,16 @@ class LibraryStore extends ChangeNotifier {
           ),
         );
         recents.addAll((j['recents'] as List? ?? []).cast<String>());
+        listenMs = (j['listenMs'] as num?)?.toInt() ?? 0;
+        (j['weekMs'] as Map? ?? {}).forEach(
+          (k, v) => weekMs[k as String] = (v as num).toInt(),
+        );
         (j['plays'] as Map? ?? {}).forEach(
           (k, v) => plays[k as String] = (v as num).toInt(),
         );
         final s = j['settings'] as Map? ?? {};
         bgStyle = s['bgStyle'] as String? ?? bgStyle;
+        homeBgStyle = s['homeBgStyle'] as String? ?? homeBgStyle;
         accentIndex = (s['accentIndex'] as num?)?.toInt() ?? accentIndex;
         crossfade = (s['crossfade'] as num?)?.toInt() ?? crossfade;
         onlineLyrics = s['onlineLyrics'] as bool? ?? onlineLyrics;
@@ -76,8 +86,11 @@ class LibraryStore extends ChangeNotifier {
       'playlists': playlists.map((p) => p.toJson()).toList(),
       'recents': recents,
       'plays': plays,
+      'listenMs': listenMs,
+      'weekMs': weekMs,
       'settings': {
         'bgStyle': bgStyle,
+        'homeBgStyle': homeBgStyle,
         'accentIndex': accentIndex,
         'crossfade': crossfade,
         'onlineLyrics': onlineLyrics,
@@ -220,6 +233,31 @@ class LibraryStore extends ChangeNotifier {
     _changed();
   }
 
+  /// Canciones agrupadas por la carpeta donde están en el celular.
+  List<SongGroup> get folders {
+    final map = <String, List<Song>>{};
+    for (final s in songs.values) {
+      final String name;
+      if (s.path.startsWith('app:')) {
+        name = 'Importadas';
+      } else {
+        final parts = s.path.split('/');
+        name = parts.length > 1 ? parts[parts.length - 2] : 'Otras';
+      }
+      map.putIfAbsent(name, () => []).add(s);
+    }
+    return map.entries
+        .map(
+          (e) => SongGroup(
+            e.key,
+            '${e.value.length} ${e.value.length == 1 ? 'canción' : 'canciones'}',
+            e.value..sort((a, b) => a.title.compareTo(b.title)),
+          ),
+        )
+        .toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  }
+
   List<Song> albumSongs(String album, String artist) =>
       songs.values.where((s) => s.album == album && s.artist == artist).toList()
         ..sort((a, b) => a.title.compareTo(b.title));
@@ -240,6 +278,29 @@ class LibraryStore extends ChangeNotifier {
       } catch (_) {}
     }
     _changed();
+  }
+
+  static String _weekKey(DateTime d) {
+    final monday = DateTime(d.year, d.month, d.day - (d.weekday - 1));
+    return '${monday.year}-${monday.month}-${monday.day}';
+  }
+
+  int get listenMinutes => listenMs ~/ 60000;
+  int get weekMinutes => (weekMs[_weekKey(DateTime.now())] ?? 0) ~/ 60000;
+
+  /// Suma tiempo escuchado. Solo avisa y guarda cuando cambia el minuto.
+  void addListen(int ms) {
+    final before = listenMinutes;
+    listenMs += ms;
+    final k = _weekKey(DateTime.now());
+    weekMs[k] = (weekMs[k] ?? 0) + ms;
+    if (weekMs.length > 8) {
+      final keys = weekMs.keys.toList();
+      for (final old in keys.take(keys.length - 8)) {
+        weekMs.remove(old);
+      }
+    }
+    if (listenMinutes != before) _changed();
   }
 
   void markPlayed(String id) {
@@ -311,6 +372,11 @@ class LibraryStore extends ChangeNotifier {
 
   void setBgStyle(String v) {
     bgStyle = v;
+    _changed();
+  }
+
+  void setHomeBgStyle(String v) {
+    homeBgStyle = v;
     _changed();
   }
 

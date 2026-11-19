@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -17,39 +18,58 @@ import 'lyrics_screen.dart';
 import 'settings_screen.dart';
 import 'song_list_screen.dart';
 
-/// Fondo del reproductor según el ajuste: portada difuminada, degradado o sólido.
+/// Fondo con el color de la canción: portada difuminada, degradado o sólido.
+/// Se usa en el reproductor, en la letra y (más oscuro) en el menú principal.
 class PlayerBackground extends StatelessWidget {
-  const PlayerBackground({super.key, required this.song, this.dim = 0.35});
+  const PlayerBackground({
+    super.key,
+    required this.song,
+    this.dim = 0.35,
+    this.style,
+    this.home = false,
+  });
   final Song? song;
   final double dim;
 
+  /// 'blur', 'grad' o 'solid'. Si es null se usa el ajuste del reproductor.
+  final String? style;
+
+  /// Versión más oscura para el menú principal (para que se lea el texto).
+  final bool home;
+
   @override
   Widget build(BuildContext context) {
-    final style = store.bgStyle;
+    final style = this.style ?? store.bgStyle;
     final coverFile = song?.cover == null ? null : store.resolve(song!.cover!);
-    if (style == 'solid') return const ColoredBox(color: Color(0xFF1A1A1F));
+    if (style == 'solid' || song == null) {
+      return ColoredBox(color: home ? kBg : const Color(0xFF1A1A1F));
+    }
     if (style == 'blur' && coverFile != null) {
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          ImageFiltered(
-            imageFilter: ImageFilter.blur(
-              sigmaX: 70,
-              sigmaY: 70,
-              tileMode: TileMode.decal,
-            ),
-            child: Transform.scale(
-              scale: 1.5,
-              child: Image.file(
-                File(coverFile),
-                fit: BoxFit.cover,
-                cacheWidth: 200,
-                gaplessPlayback: true,
+      // Imagen chiquita + desenfoque: se ve igual y es mucho más liviano.
+      return RepaintBoundary(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ImageFiltered(
+              imageFilter: ImageFilter.blur(
+                sigmaX: 40,
+                sigmaY: 40,
+                tileMode: TileMode.decal,
+              ),
+              child: Transform.scale(
+                scale: 1.4,
+                child: Image.file(
+                  File(coverFile),
+                  fit: BoxFit.cover,
+                  cacheWidth: 64,
+                  filterQuality: FilterQuality.medium,
+                  gaplessPlayback: true,
+                ),
               ),
             ),
-          ),
-          ColoredBox(color: Colors.black.withValues(alpha: dim)),
-        ],
+            ColoredBox(color: Colors.black.withValues(alpha: home ? 0.6 : dim)),
+          ],
+        ),
       );
     }
     // Degradado suave con el color de la portada (más claro arriba, oscuro abajo).
@@ -59,19 +79,25 @@ class PlayerBackground extends StatelessWidget {
         final base = HSLColor.fromColor(snap.data ?? const Color(0xFF4A3A33));
         final top = base
             .withSaturation((base.saturation * 0.55).clamp(0.0, 0.45))
-            .withLightness(0.36)
+            .withLightness(home ? 0.26 : 0.36)
             .toColor();
-        final bottom = base
-            .withSaturation((base.saturation * 0.5).clamp(0.0, 0.4))
-            .withLightness(0.14)
-            .toColor();
+        final bottom = home
+            ? kBg
+            : base
+                  .withSaturation((base.saturation * 0.5).clamp(0.0, 0.4))
+                  .withLightness(0.14)
+                  .toColor();
         return AnimatedContainer(
           duration: const Duration(milliseconds: 600),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [top, Color.lerp(top, bottom, 0.55)!, bottom],
+              colors: [
+                top,
+                Color.lerp(top, bottom, home ? 0.75 : 0.55)!,
+                bottom,
+              ],
             ),
           ),
         );
@@ -180,14 +206,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 tooltip: 'Cerrar reproductor',
                 padding: EdgeInsets.zero,
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 34),
+                icon: const Icon(CupertinoIcons.chevron_down, size: 24),
               ),
               const Spacer(),
               Builder(
                 builder: (btnContext) => IconButton(
                   tooltip: 'Más opciones',
                   onPressed: () => _showMenu(btnContext, song),
-                  icon: const Icon(Icons.more_horiz_rounded, size: 30),
+                  icon: const Icon(CupertinoIcons.ellipsis, size: 24),
                 ),
               ),
             ],
@@ -198,7 +224,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
               Text(
                 _format(song),
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 12,
                   color: Colors.white60,
                   letterSpacing: 0.2,
                 ),
@@ -277,7 +303,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     Marquee(
                       song.title,
                       style: const TextStyle(
-                        fontSize: 26,
+                        fontSize: 22,
                         fontWeight: FontWeight.w500,
                         color: Colors.white,
                       ),
@@ -288,7 +314,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           ? song.artist
                           : '${song.artist} - ${song.album}',
                       style: const TextStyle(
-                        fontSize: 17,
+                        fontSize: 15,
                         color: Colors.white60,
                       ),
                     ),
@@ -313,14 +339,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       transitionBuilder: (c, a) => ScaleTransition(
                         scale: CurvedAnimation(
                           parent: a,
-                          curve: Curves.elasticOut,
+                          curve: Curves.easeOutBack,
                         ),
                         child: c,
                       ),
                       child: Icon(
-                        fav ? Icons.star_rounded : Icons.star_outline_rounded,
+                        fav ? CupertinoIcons.star_fill : CupertinoIcons.star,
                         key: ValueKey(fav),
-                        size: 32,
+                        size: 24,
                         color: fav ? accent : Colors.white,
                       ),
                     ),
@@ -330,16 +356,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
               IconButton(
                 tooltip: 'Letra',
                 onPressed: () => _openLyrics(context),
-                icon: const Icon(Icons.format_quote_rounded, size: 30),
-                style: IconButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    side: const BorderSide(color: Colors.white70, width: 2),
-                  ),
-                  minimumSize: const Size(40, 36),
-                  fixedSize: const Size(44, 38),
-                  padding: EdgeInsets.zero,
-                ),
+                icon: const Icon(CupertinoIcons.quote_bubble, size: 24),
               ),
             ],
           ),
@@ -368,9 +385,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       activeTrackColor: Colors.white,
                       inactiveTrackColor: Colors.white24,
                       thumbColor: Colors.white,
-                      trackHeight: 4,
+                      trackHeight: 3,
                       thumbShape: RoundSliderThumbShape(
-                        enabledThumbRadius: _dragValue == null ? 8 : 11,
+                        enabledThumbRadius: _dragValue == null ? 7 : 10,
                       ),
                       trackShape: const RoundedRectSliderTrackShape(),
                     ),
@@ -395,14 +412,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       Text(
                         two(Duration(milliseconds: value.round())),
                         style: const TextStyle(
-                          fontSize: 14,
+                          fontSize: 13,
                           color: Colors.white70,
                         ),
                       ),
                       Text(
                         '-${two(dur - Duration(milliseconds: value.round()))}',
                         style: const TextStyle(
-                          fontSize: 14,
+                          fontSize: 13,
                           color: Colors.white70,
                         ),
                       ),
@@ -429,43 +446,51 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           : 'Aleatorio: desactivado',
                       onTap: audio.toggleShuffle,
                       child: Icon(
-                        Icons.shuffle_rounded,
-                        size: 30,
+                        CupertinoIcons.shuffle,
+                        size: 24,
                         color: audio.shuffleOn ? accent : Colors.white70,
                       ),
                     ),
                     _Press(
                       tooltip: 'Anterior',
                       onTap: audio.skipToPrevious,
-                      child: const Icon(Icons.fast_rewind_rounded, size: 48),
+                      child: const Icon(CupertinoIcons.backward_fill, size: 32),
                     ),
                     _Press(
                       tooltip: playing ? 'Pausar' : 'Reproducir',
                       onTap: audio.togglePlay,
+                      width: 88,
                       child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 180),
-                        transitionBuilder: (c, a) =>
-                            ScaleTransition(scale: a, child: c),
-                        child: Icon(
-                          playing
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                          key: ValueKey(playing),
-                          size: 76,
+                        duration: const Duration(milliseconds: 150),
+                        transitionBuilder: (c, a) => FadeTransition(
+                          opacity: a,
+                          child: ScaleTransition(scale: a, child: c),
                         ),
+                        child: playing
+                            ? const Icon(
+                                CupertinoIcons.pause_fill,
+                                key: ValueKey(true),
+                                size: 44,
+                              )
+                            : const Padding(
+                                key: ValueKey(false),
+                                // el triángulo se ve corrido a la izquierda: se compensa un poco
+                                padding: EdgeInsets.only(left: 4),
+                                child: Icon(CupertinoIcons.play_fill, size: 44),
+                              ),
                       ),
                     ),
                     _Press(
                       tooltip: 'Siguiente',
                       onTap: audio.skipToNext,
-                      child: const Icon(Icons.fast_forward_rounded, size: 48),
+                      child: const Icon(CupertinoIcons.forward_fill, size: 32),
                     ),
                     _Press(
                       tooltip: 'Cola de reproducción',
                       onTap: () => _showQueue(context),
                       child: const Icon(
-                        Icons.queue_music_rounded,
-                        size: 32,
+                        CupertinoIcons.music_note_list,
+                        size: 24,
                         color: Colors.white70,
                       ),
                     ),
@@ -501,13 +526,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     HapticFeedback.selectionClick();
                     audio.cycleRepeat();
                   },
-                  child: Glass(
-                    radius: 22,
-                    dark: true,
+                  child: DecoratedBox(
+                    // Casi transparente, solo un borde suave.
+                    decoration: BoxDecoration(
+                      color: const Color(0x12FFFFFF),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: const Color(0x1AFFFFFF)),
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 11,
+                        horizontal: 16,
+                        vertical: 9,
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -516,7 +545,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             audio.repeatMode == AudioServiceRepeatMode.one
                                 ? Icons.repeat_one_rounded
                                 : Icons.repeat_rounded,
-                            size: 18,
+                            size: 14,
                             color:
                                 audio.repeatMode == AudioServiceRepeatMode.none
                                 ? Colors.white70
@@ -529,7 +558,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontSize: 14,
+                                fontSize: 12,
                                 color: Colors.white,
                               ),
                             ),
@@ -865,8 +894,10 @@ class _Press extends StatefulWidget {
     required this.child,
     required this.onTap,
     required this.tooltip,
+    this.width = 52,
   });
   final Widget child;
+  final double width;
   final VoidCallback onTap;
   final String tooltip;
 
@@ -894,12 +925,12 @@ class _PressState extends State<_Press> {
             widget.onTap();
           },
           child: AnimatedScale(
-            scale: _down ? 0.82 : 1,
-            duration: Duration(milliseconds: _down ? 90 : 420),
-            curve: _down ? Curves.easeOut : Curves.elasticOut,
+            scale: _down ? 0.88 : 1,
+            duration: const Duration(milliseconds: 140),
+            curve: Curves.easeOut,
             child: SizedBox(
-              width: 56,
-              height: 80,
+              width: widget.width,
+              height: 72,
               child: Center(child: widget.child),
             ),
           ),

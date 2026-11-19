@@ -6,7 +6,13 @@ import '../theme.dart';
 import '../widgets/common.dart';
 
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.embedded = false, this.header});
+
+  /// true = se muestra dentro de la pestaña "Más" (sin barra superior).
+  final bool embedded;
+
+  /// Contenido extra arriba de los ajustes (accesos de la pestaña "Más").
+  final Widget? header;
 
   static const _styles = [
     ('blur', 'Portada difuminada'),
@@ -16,100 +22,100 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Ajustes')),
-      body: ListenableBuilder(
-        listenable: store,
-        builder: (context, _) {
-          final accent =
-              accents[store.accentIndex.clamp(0, accents.length - 1)];
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-            children: [
-              const ThemePicker(),
-              const SizedBox(height: 26),
-              Row(
+    final body = ListenableBuilder(
+      listenable: store,
+      builder: (context, _) {
+        final accent = accents[store.accentIndex.clamp(0, accents.length - 1)];
+        return ListView(
+          padding: EdgeInsets.fromLTRB(20, 8, 20, embedded ? 190 : 40),
+          children: [
+            ?header,
+            const ThemePicker(),
+            const SizedBox(height: 26),
+            Row(
+              children: [
+                const Expanded(child: _Label('Crossfade entre canciones')),
+                Text(
+                  store.crossfade == 0 ? 'Apagado' : '${store.crossfade} s',
+                  style: TextStyle(
+                    color: accent.color,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            Slider(
+              value: store.crossfade.toDouble(),
+              min: 0,
+              max: 12,
+              divisions: 12,
+              label: store.crossfade == 0 ? 'Apagado' : '${store.crossfade} s',
+              onChanged: (v) => store.setCrossfade(v.round()),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'La canción que termina baja de volumen mientras la siguiente empieza. 0 = sin crossfade.',
+              style: TextStyle(color: kMuted, fontSize: 13),
+            ),
+            const SizedBox(height: 26),
+            Container(
+              decoration: BoxDecoration(
+                color: kSurface,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
                 children: [
-                  const Expanded(child: _Label('Crossfade entre canciones')),
-                  Text(
-                    store.crossfade == 0 ? 'Apagado' : '${store.crossfade} s',
-                    style: TextStyle(
-                      color: accent.color,
-                      fontWeight: FontWeight.w700,
+                  SwitchListTile(
+                    title: const Text('Buscar letras en internet'),
+                    subtitle: const Text(
+                      'Si la canción no trae letra, se busca en LRCLIB',
+                      style: TextStyle(color: kMuted, fontSize: 12),
                     ),
+                    value: store.onlineLyrics,
+                    onChanged: store.setOnlineLyrics,
+                  ),
+                  const Divider(height: 1, color: kSurface2),
+                  ListTile(
+                    title: const Text('Borrar letras descargadas'),
+                    trailing: const Icon(
+                      Icons.chevron_right_rounded,
+                      color: kMuted,
+                    ),
+                    onTap: () async {
+                      await LyricsService.clearDownloaded();
+                      nowLyrics.refresh(force: true);
+                      if (context.mounted)
+                        toast(context, 'Letras descargadas borradas');
+                    },
                   ),
                 ],
               ),
-              Slider(
-                value: store.crossfade.toDouble(),
-                min: 0,
-                max: 12,
-                divisions: 12,
-                label: store.crossfade == 0
-                    ? 'Apagado'
-                    : '${store.crossfade} s',
-                onChanged: (v) => store.setCrossfade(v.round()),
+            ),
+            const SizedBox(height: 26),
+            const _Label('Música'),
+            Text(
+              '${store.songs.length} canciones en la biblioteca',
+              style: const TextStyle(color: kMuted),
+            ),
+            const SizedBox(height: 12),
+            const ScanBanner(),
+            const SizedBox(height: 8),
+            const AddMusicButtons(),
+            const SizedBox(height: 40),
+            const Center(
+              child: Text(
+                'Kenny Music 1.4.2',
+                style: TextStyle(color: kMuted, fontSize: 12),
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'La canción que termina baja de volumen mientras la siguiente empieza. 0 = sin crossfade.',
-                style: TextStyle(color: kMuted, fontSize: 13),
-              ),
-              const SizedBox(height: 26),
-              Container(
-                decoration: BoxDecoration(
-                  color: kSurface,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Column(
-                  children: [
-                    SwitchListTile(
-                      title: const Text('Buscar letras en internet'),
-                      subtitle: const Text(
-                        'Si la canción no trae letra, se busca en LRCLIB',
-                        style: TextStyle(color: kMuted, fontSize: 12),
-                      ),
-                      value: store.onlineLyrics,
-                      onChanged: store.setOnlineLyrics,
-                    ),
-                    const Divider(height: 1, color: kSurface2),
-                    ListTile(
-                      title: const Text('Borrar letras descargadas'),
-                      trailing: const Icon(
-                        Icons.chevron_right_rounded,
-                        color: kMuted,
-                      ),
-                      onTap: () async {
-                        await LyricsService.clearDownloaded();
-                        nowLyrics.refresh(force: true);
-                        if (context.mounted)
-                          toast(context, 'Letras descargadas borradas');
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 26),
-              const _Label('Música'),
-              Text(
-                '${store.songs.length} canciones en la biblioteca',
-                style: const TextStyle(color: kMuted),
-              ),
-              const SizedBox(height: 12),
-              const ScanBanner(),
-              const SizedBox(height: 8),
-              const AddMusicButtons(),
-              const SizedBox(height: 40),
-              const Center(
-                child: Text(
-                  'Kenny Music 1.1.1',
-                  style: TextStyle(color: kMuted, fontSize: 12),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
+            ),
+          ],
+        );
+      },
+    );
+    if (embedded) return SafeArea(bottom: false, child: body);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Ajustes')),
+      body: body,
     );
   }
 }
@@ -138,6 +144,24 @@ class ThemePicker extends StatelessWidget {
                       selected: store.bgStyle == id,
                       ring: accent.color,
                       onTap: () => store.setBgStyle(id),
+                    ),
+                  ),
+                  if (id != 'solid') const SizedBox(width: 10),
+                ],
+              ],
+            ),
+            const SizedBox(height: 26),
+            const _Label('Fondo del menú principal'),
+            Row(
+              children: [
+                for (final (id, label) in SettingsScreen._styles) ...[
+                  Expanded(
+                    child: _StyleCard(
+                      id: id,
+                      label: label,
+                      selected: store.homeBgStyle == id,
+                      ring: accent.color,
+                      onTap: () => store.setHomeBgStyle(id),
                     ),
                   ),
                   if (id != 'solid') const SizedBox(width: 10),

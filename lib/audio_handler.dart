@@ -18,6 +18,10 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
       _listen(i);
     }
     _initSession();
+    // Cuenta los minutos escuchados (para el panel "Tu música").
+    Timer.periodic(const Duration(seconds: 5), (_) {
+      if (_p.playing) store.addListen(5000);
+    });
   }
 
   final LibraryStore store;
@@ -83,8 +87,11 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
   Duration get position => _p.position;
   Duration? get duration => _p.duration;
 
-  Stream<Duration> get positionTicks =>
-      Stream.periodic(const Duration(milliseconds: 200), (_) => _p.position);
+  /// Posición actual cada 200 ms (una sola fuente compartida por toda la app).
+  late final Stream<Duration> positionTicks = Stream.periodic(
+    const Duration(milliseconds: 200),
+    (_) => _p.position,
+  ).asBroadcastStream();
 
   Future<void> _initSession() async {
     final s = await AudioSession.instance;

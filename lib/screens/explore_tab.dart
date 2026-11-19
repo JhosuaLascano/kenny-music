@@ -9,14 +9,16 @@ import 'song_list_screen.dart';
 
 /// Explorar por artistas y álbumes.
 class ExploreTab extends StatefulWidget {
-  const ExploreTab({super.key});
+  const ExploreTab({super.key, this.initialMode = 0, this.title = 'Explorar'});
+  final int initialMode;
+  final String title;
 
   @override
   State<ExploreTab> createState() => _ExploreTabState();
 }
 
 class _ExploreTabState extends State<ExploreTab> {
-  int _mode = 0; // 0 artistas, 1 álbumes
+  late int _mode = widget.initialMode; // 0 artistas, 1 álbumes
 
   @override
   Widget build(BuildContext context) {
@@ -35,8 +37,8 @@ class _ExploreTabState extends State<ExploreTab> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Explorar',
+                      Text(
+                        widget.title,
                         style: TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.w800,

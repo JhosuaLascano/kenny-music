@@ -5,11 +5,11 @@ import 'package:flutter/physics.dart';
 /// La pantalla de atrás lo usa para encogerse un poco, como en iPhone.
 final playerOpenProgress = ValueNotifier<double>(0);
 
-const _spring = SpringDescription(mass: 1, stiffness: 170, damping: 19);
+const _spring = SpringDescription(mass: 1, stiffness: 260, damping: 27);
 
 /// Curva de resorte: llega, se pasa un poquito y regresa (rebote suave).
 class SpringCurve extends Curve {
-  const SpringCurve([this.seconds = 0.55]);
+  const SpringCurve([this.seconds = 0.42]);
   final double seconds;
 
   @override
@@ -29,13 +29,14 @@ class PlayerRoute extends PageRoute<void> {
   @override
   String? get barrierLabel => null;
   @override
-  bool get opaque => false;
+  // Cuando termina de abrir, la pantalla de atrás deja de dibujarse (más fluido).
+  bool get opaque => true;
   @override
   bool get maintainState => true;
   @override
-  Duration get transitionDuration => const Duration(milliseconds: 550);
+  Duration get transitionDuration => const Duration(milliseconds: 420);
   @override
-  Duration get reverseTransitionDuration => const Duration(milliseconds: 380);
+  Duration get reverseTransitionDuration => const Duration(milliseconds: 300);
 
   @override
   AnimationController createAnimationController() {

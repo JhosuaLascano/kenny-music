@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -10,6 +11,7 @@ import '../models.dart';
 import '../scanner.dart';
 import '../screens/player_screen.dart' show openPlayerScreen;
 import '../theme.dart';
+import 'marquee.dart';
 
 Color accentOf(BuildContext context) => Theme.of(context).colorScheme.primary;
 
@@ -397,50 +399,53 @@ class PlaylistCover extends StatelessWidget {
   }
 }
 
-/// Fondo de vidrio translúcido (estilo "liquid glass").
+/// Vidrio translúcido (estilo "liquid glass"): difumina lo que pasa por
+/// detrás y deja ver sus colores.
 class Glass extends StatelessWidget {
   const Glass({
     super.key,
     required this.child,
     this.radius = 33,
     this.dark = false,
+    this.blur = true,
   });
   final Widget child;
   final double radius;
   final bool dark;
 
+  /// false = transparente de verdad (se ve lo de atrás sin difuminar).
+  final bool blur;
+
   @override
   Widget build(BuildContext context) {
     final r = BorderRadius.circular(radius);
+    if (!blur) return _liquid(r);
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: r,
         boxShadow: const [
           BoxShadow(
-            color: Color(0x73000000),
-            blurRadius: 30,
-            offset: Offset(0, 10),
+            color: Color(0x40000000),
+            blurRadius: 24,
+            offset: Offset(0, 8),
           ),
         ],
       ),
       child: ClipRRect(
         borderRadius: r,
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: r,
-              color: dark ? const Color(0xB826262B) : null,
-              gradient: dark
-                  ? null
-                  : const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Color(0x33FFFFFF), Color(0x14FFFFFF)],
-                    ),
-              border: Border.all(
-                color: dark ? const Color(0x24FFFFFF) : const Color(0x38FFFFFF),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: dark
+                    ? const [Color(0x47303036), Color(0x38202024)]
+                    : const [Color(0x17FFFFFF), Color(0x06FFFFFF)],
               ),
+              border: Border.all(color: const Color(0x2EFFFFFF), width: 0.8),
             ),
             child: child,
           ),
@@ -448,21 +453,96 @@ class Glass extends StatelessWidget {
       ),
     );
   }
+
+  /// Estilo "liquid glass": se ve lo de atrás (difuminado suave), con un
+  /// tinte claro, borde brillante y un reflejo arriba para que se distinga.
+  Widget _liquid(BorderRadius r) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: r,
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x47000000),
+            blurRadius: 22,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: r,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+          child: Stack(
+            children: [
+              // Base: un poco oscura para que el texto blanco se lea siempre.
+              const Positioned.fill(
+                child: ColoredBox(color: Color(0x24000000)),
+              ),
+              // Tinte de vidrio claro.
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: r,
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0x38FFFFFF), Color(0x14FFFFFF)],
+                    ),
+                  ),
+                ),
+              ),
+              // Reflejo de luz en la parte de arriba.
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: r,
+                      gradient: const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.center,
+                        colors: [Color(0x40FFFFFF), Color(0x00FFFFFF)],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Borde brillante.
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: r,
+                      border: Border.all(
+                        color: const Color(0x80FFFFFF),
+                        width: 1.2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              child,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-/// Barra de navegación de vidrio. Se puede tocar o deslizar el dedo por encima:
-/// la burbuja sigue al dedo, cambia de pestaña al pasar y al soltar se
-/// acomoda con un pequeño rebote.
+/// Barra de navegación de vidrio transparente. Al deslizar el dedo aparece
+/// una gota de vidrio más grande que agranda el ícono que está debajo; la
+/// pestaña cambia recién al soltar.
 class GlassNavBar extends StatefulWidget {
   const GlassNavBar({super.key, required this.index, required this.onTap});
   final int index;
   final ValueChanged<int> onTap;
 
   static const items = [
-    (Icons.home_rounded, 'Inicio'),
-    (Icons.grid_view_rounded, 'Explorar'),
-    (Icons.library_music_rounded, 'Biblioteca'),
-    (Icons.search_rounded, 'Buscar'),
+    (CupertinoIcons.house_fill, 'Inicio'),
+    (CupertinoIcons.music_note_list, 'Listas'),
+    (CupertinoIcons.folder_fill, 'Carpeta'),
+    (CupertinoIcons.music_albums_fill, 'Álbum'),
+    (CupertinoIcons.square_grid_2x2_fill, 'Más'),
   ];
 
   @override
@@ -470,109 +550,115 @@ class GlassNavBar extends StatefulWidget {
 }
 
 class _GlassNavBarState extends State<GlassNavBar> {
-  double? _fingerX; // posición del dedo mientras se arrastra
+  double? _fingerX; // dónde está el dedo mientras se arrastra
   bool _pressed = false;
-  static const _pad = 6.0;
+  static const _pad = 5.0;
+  static const _h = 62.0;
 
   int _indexAt(double x, double itemW) =>
       ((x - _pad) / itemW).floor().clamp(0, GlassNavBar.items.length - 1);
 
-  void _move(double x, double itemW) {
+  void _finish(double x, double itemW) {
     final i = _indexAt(x, itemW);
-    setState(() => _fingerX = x);
+    setState(() {
+      _fingerX = null;
+      _pressed = false;
+    });
     if (i != widget.index) {
       HapticFeedback.selectionClick();
       widget.onTap(i);
     }
   }
 
-  void _release() => setState(() {
-    _fingerX = null;
-    _pressed = false;
-  });
-
   @override
   Widget build(BuildContext context) {
     final accent = accentOf(context);
     final n = GlassNavBar.items.length;
-    return Glass(
-      child: SizedBox(
-        height: 66,
-        child: LayoutBuilder(
-          builder: (context, c) {
-            final itemW = (c.maxWidth - _pad * 2) / n;
-            final dragging = _fingerX != null;
-            final bubbleLeft = dragging
-                ? (_fingerX! - itemW / 2).clamp(_pad, c.maxWidth - _pad - itemW)
-                : _pad + widget.index * itemW;
-            final lit = dragging ? _indexAt(_fingerX!, itemW) : widget.index;
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapDown: (d) => setState(() => _pressed = true),
-              onTapUp: (d) {
-                final i = _indexAt(d.localPosition.dx, itemW);
-                if (i != widget.index) {
-                  HapticFeedback.selectionClick();
-                  widget.onTap(i);
-                }
-                _release();
-              },
-              onTapCancel: () => setState(() => _pressed = false),
-              onHorizontalDragStart: (d) {
-                _pressed = true;
-                _move(d.localPosition.dx, itemW);
-              },
-              onHorizontalDragUpdate: (d) => _move(d.localPosition.dx, itemW),
-              onHorizontalDragEnd: (_) => _release(),
-              onHorizontalDragCancel: _release,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // Burbuja de vidrio (se agranda como lupa mientras se toca)
-                  AnimatedPositioned(
-                    duration: dragging
-                        ? Duration.zero
-                        : const Duration(milliseconds: 520),
-                    curve: Curves.easeOutBack,
-                    left: bubbleLeft,
-                    top: 5,
-                    width: itemW,
-                    height: 56,
-                    child: AnimatedScale(
-                      scale: _pressed || dragging ? 1.16 : 1,
-                      duration: const Duration(milliseconds: 380),
-                      curve: _pressed || dragging
-                          ? Curves.easeOutBack
-                          : Curves.elasticOut,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(28),
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: _pressed || dragging
-                                ? const [Color(0x40FFFFFF), Color(0x1AFFFFFF)]
-                                : const [Color(0x2EFFFFFF), Color(0x14FFFFFF)],
-                          ),
-                          border: Border.all(
-                            color: _pressed || dragging
-                                ? const Color(0x66FFFFFF)
-                                : const Color(0x26FFFFFF),
-                          ),
-                          boxShadow: _pressed || dragging
-                              ? [
-                                  BoxShadow(
-                                    color: accent.withValues(alpha: 0.25),
-                                    blurRadius: 18,
-                                  ),
-                                ]
-                              : const [],
-                        ),
+    return SizedBox(
+      height: _h,
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final itemW = (c.maxWidth - _pad * 2) / n;
+          final drop = _fingerX != null || _pressed; // modo gota
+          final center = _fingerX != null
+              ? _fingerX!.clamp(_pad + itemW / 2, c.maxWidth - _pad - itemW / 2)
+              : _pad + (widget.index + 0.5) * itemW;
+          final lit = _fingerX != null
+              ? _indexAt(_fingerX!, itemW)
+              : widget.index;
+          // La gota es más grande que la barra y sobresale arriba y abajo.
+          final bw = drop ? itemW + 22 : itemW;
+          final bh = drop ? _h + 16 : _h - 8;
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (_) => setState(() => _pressed = true),
+            onTapUp: (d) => _finish(d.localPosition.dx, itemW),
+            onTapCancel: () => setState(() => _pressed = false),
+            onHorizontalDragStart: (d) => setState(() {
+              _pressed = true;
+              _fingerX = d.localPosition.dx;
+            }),
+            onHorizontalDragUpdate: (d) =>
+                setState(() => _fingerX = d.localPosition.dx),
+            onHorizontalDragEnd: (_) => _finish(_fingerX ?? 0, itemW),
+            onHorizontalDragCancel: () => setState(() {
+              _fingerX = null;
+              _pressed = false;
+            }),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Positioned.fill(
+                  child: Glass(blur: false, child: SizedBox.expand()),
+                ),
+                AnimatedPositioned(
+                  duration: _fingerX != null
+                      ? Duration.zero
+                      : const Duration(milliseconds: 240),
+                  curve: Curves.easeOutCubic,
+                  left: center - bw / 2,
+                  top: (_h - bh) / 2,
+                  width: bw,
+                  height: bh,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(bh / 2),
+                      gradient: drop
+                          ? RadialGradient(
+                              center: const Alignment(-0.35, -0.45),
+                              radius: 1.1,
+                              colors: [
+                                const Color(0x59FFFFFF),
+                                const Color(0x12FFFFFF),
+                                const Color(0x05FFFFFF),
+                              ],
+                              stops: const [0, 0.45, 1],
+                            )
+                          : const LinearGradient(
+                              colors: [Color(0x1FFFFFFF), Color(0x14FFFFFF)],
+                            ),
+                      border: Border.all(
+                        color: drop
+                            ? const Color(0xB3FFFFFF)
+                            : const Color(0x1FFFFFFF),
+                        width: drop ? 1.4 : 0.8,
                       ),
+                      boxShadow: drop
+                          ? const [
+                              BoxShadow(
+                                color: Color(0x4D000000),
+                                blurRadius: 20,
+                                offset: Offset(0, 6),
+                              ),
+                            ]
+                          : const [],
                     ),
                   ),
-                  Padding(
+                ),
+                Positioned.fill(
+                  child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: _pad),
                     child: Row(
                       children: [
@@ -584,24 +670,26 @@ class _GlassNavBarState extends State<GlassNavBar> {
                               label: GlassNavBar.items[i].$2,
                               onTap: () => widget.onTap(i),
                               child: AnimatedScale(
-                                scale: i == lit && dragging ? 1.12 : 1,
-                                duration: const Duration(milliseconds: 250),
-                                curve: Curves.easeOutBack,
+                                scale: drop && i == lit ? 1.32 : 1,
+                                duration: const Duration(milliseconds: 180),
+                                curve: Curves.easeOut,
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Icon(
                                       GlassNavBar.items[i].$1,
-                                      size: 24,
-                                      color: i == lit ? accent : kMuted,
+                                      size: 22,
+                                      color: i == lit ? accent : Colors.white70,
                                     ),
-                                    const SizedBox(height: 2),
+                                    const SizedBox(height: 3),
                                     Text(
                                       GlassNavBar.items[i].$2,
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w600,
-                                        color: i == lit ? accent : kMuted,
+                                        color: i == lit
+                                            ? accent
+                                            : Colors.white70,
                                       ),
                                     ),
                                   ],
@@ -612,11 +700,11 @@ class _GlassNavBarState extends State<GlassNavBar> {
                       ],
                     ),
                   ),
-                ],
-              ),
-            );
-          },
-        ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -624,7 +712,7 @@ class _GlassNavBarState extends State<GlassNavBar> {
 
 void openPlayer(BuildContext context) => openPlayerScreen(context);
 
-/// Mini-reproductor flotante de vidrio.
+/// Mini-reproductor de vidrio, delgado.
 /// Deslizar a la izquierda = siguiente, a la derecha = anterior,
 /// hacia arriba (o tocar) = abrir el reproductor.
 class MiniPlayer extends StatefulWidget {
@@ -640,46 +728,20 @@ class _MiniPlayerState extends State<MiniPlayer> {
 
   void _endDrag(double velocity) {
     final w = context.size?.width ?? 300;
-    final next = _dx < -w * 0.25 || velocity < -600;
-    final prev = _dx > w * 0.25 || velocity > 600;
+    final next = _dx < -w * 0.22 || velocity < -600;
+    final prev = _dx > w * 0.22 || velocity > 600;
+    setState(() {
+      _dragging = false;
+      _dx = 0;
+    });
     if (next || prev) {
       HapticFeedback.lightImpact();
-      // Sale por un lado y entra la nueva canción por el otro.
-      setState(() {
-        _dragging = false;
-        _dx = next ? -w : w;
-      });
-      Future.delayed(const Duration(milliseconds: 160), () {
-        if (next) {
-          audio.skipToNext();
-        } else {
-          audio.skipToPrevious();
-        }
-        if (!mounted) return;
-        setState(() {
-          _dragging = true;
-          _dx = next ? w * 0.6 : -w * 0.6;
-        });
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            setState(() {
-              _dragging = false;
-              _dx = 0;
-            });
-          }
-        });
-      });
-    } else {
-      setState(() {
-        _dragging = false;
-        _dx = 0;
-      });
+      next ? audio.skipToNext() : audio.skipToPrevious();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final accent = accentOf(context);
     return StreamBuilder<MediaItem?>(
       stream: audio.mediaItem,
       builder: (context, snap) {
@@ -695,92 +757,59 @@ class _MiniPlayerState extends State<MiniPlayer> {
           onHorizontalDragEnd: (d) => _endDrag(d.velocity.pixelsPerSecond.dx),
           onHorizontalDragCancel: () => _endDrag(0),
           child: Glass(
-            radius: 31,
-            dark: true,
+            radius: 27,
+            blur: false,
             child: SizedBox(
-              height: 62,
-              child: Stack(
-                children: [
-                  AnimatedContainer(
-                    duration: _dragging
-                        ? Duration.zero
-                        : const Duration(milliseconds: 450),
-                    curve: Curves.easeOutBack,
-                    transform: Matrix4.translationValues(_dx, 0, 0),
-                    padding: const EdgeInsets.fromLTRB(9, 8, 6, 8),
-                    child: Row(
-                      children: [
-                        CoverArt(song: song, size: 44),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                song.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              Text(
-                                song.artist,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: kMuted,
-                                ),
-                              ),
-                            ],
-                          ),
+              height: 54,
+              child: AnimatedContainer(
+                duration: _dragging
+                    ? Duration.zero
+                    : const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                transform: Matrix4.translationValues(_dx * 0.6, 0, 0),
+                padding: const EdgeInsets.fromLTRB(7, 7, 4, 7),
+                child: Row(
+                  children: [
+                    CoverArt(song: song, size: 40, radius: 9),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Marquee(
+                        song.title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
                         ),
-                        StreamBuilder<PlaybackState>(
-                          stream: audio.playbackState,
-                          builder: (context, s) {
-                            final playing = s.data?.playing ?? false;
-                            return IconButton(
-                              tooltip: playing ? 'Pausar' : 'Reproducir',
-                              onPressed: audio.togglePlay,
-                              icon: Icon(
-                                playing
-                                    ? Icons.pause_rounded
-                                    : Icons.play_arrow_rounded,
-                                size: 30,
-                              ),
-                            );
-                          },
-                        ),
-                        IconButton(
-                          tooltip: 'Siguiente',
-                          onPressed: audio.skipToNext,
-                          icon: const Icon(Icons.skip_next_rounded, size: 30),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                  Positioned(
-                    left: 14,
-                    right: 14,
-                    bottom: 0,
-                    child: StreamBuilder<Duration>(
-                      stream: audio.positionTicks,
-                      builder: (context, _) {
-                        final d = audio.duration?.inMilliseconds ?? 0;
-                        final p = audio.position.inMilliseconds;
-                        return LinearProgressIndicator(
-                          value: d > 0 ? (p / d).clamp(0.0, 1.0) : 0,
-                          minHeight: 2,
-                          color: accent,
-                          backgroundColor: const Color(0xFF3F3F46),
+                    StreamBuilder<PlaybackState>(
+                      stream: audio.playbackState,
+                      builder: (context, s) {
+                        final playing = s.data?.playing ?? false;
+                        return IconButton(
+                          tooltip: playing ? 'Pausar' : 'Reproducir',
+                          onPressed: audio.togglePlay,
+                          icon: Icon(
+                            playing
+                                ? CupertinoIcons.pause_fill
+                                : CupertinoIcons.play_fill,
+                            size: 26,
+                            color: Colors.white,
+                          ),
                         );
                       },
                     ),
-                  ),
-                ],
+                    IconButton(
+                      tooltip: 'Siguiente',
+                      onPressed: audio.skipToNext,
+                      icon: const Icon(
+                        CupertinoIcons.forward_fill,
+                        size: 28,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
