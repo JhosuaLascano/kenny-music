@@ -128,7 +128,8 @@ struct ProgressRow: View {
     let dur = (data.duration ?? 0) / 1000
     let pos = (data.position ?? 0) / 1000
     VStack(spacing: 3) {
-      if data.playing, dur > 0, let at = data.updatedAt, at > 0 {
+      if #available(iOS 16.0, *), data.playing, dur > 0, let at = data.updatedAt, at > 0 {
+        // iOS 16+: la barra avanza sola mientras suena.
         let start = Date(timeIntervalSince1970: at / 1000 - pos)
         let end = start.addingTimeInterval(dur)
         ProgressView(timerInterval: start...end, countsDown: false) {
