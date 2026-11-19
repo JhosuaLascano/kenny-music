@@ -102,7 +102,7 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: 40),
               const Center(
                 child: Text(
-                  'Kenny Music 1.1.0',
+                  'Kenny Music 1.1.1',
                   style: TextStyle(color: kMuted, fontSize: 12),
                 ),
               ),
