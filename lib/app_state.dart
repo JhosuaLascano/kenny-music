@@ -1,3 +1,5 @@
+import 'package:flutter/widgets.dart';
+
 import 'audio_handler.dart';
 import 'lyrics.dart';
 import 'store.dart';
@@ -6,3 +8,6 @@ import 'store.dart';
 final store = LibraryStore();
 late final KennyAudioHandler audio;
 final nowLyrics = NowLyrics();
+
+/// Para abrir pantallas desde el reproductor (por ejemplo "Mostrar álbum").
+final navKey = GlobalKey<NavigatorState>();

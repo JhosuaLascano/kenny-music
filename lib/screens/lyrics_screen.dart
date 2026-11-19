@@ -43,11 +43,16 @@ class _LyricsScreenState extends State<LyricsScreen> {
     if (i == _current) return;
     setState(() => _current = i);
     // Si el usuario movió la letra con el dedo, se espera un poco antes de seguir.
-    if (DateTime.now().difference(_userScrolledAt) < const Duration(seconds: 4)) return;
+    if (DateTime.now().difference(_userScrolledAt) < const Duration(seconds: 4))
+      return;
     final ctx = _keys[i < 0 ? 0 : i]?.currentContext;
     if (ctx != null) {
-      Scrollable.ensureVisible(ctx,
-          alignment: 0.35, duration: const Duration(milliseconds: 450), curve: Curves.easeOutCubic);
+      Scrollable.ensureVisible(
+        ctx,
+        alignment: 0.35,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOutCubic,
+      );
     }
   }
 
@@ -75,14 +80,24 @@ class _LyricsScreenState extends State<LyricsScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(song?.title ?? '',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                                Text(song?.artist ?? '',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 13, color: Colors.white70)),
+                                Text(
+                                  song?.title ?? '',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                Text(
+                                  song?.artist ?? '',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.white70,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -114,20 +129,24 @@ class _LyricsScreenState extends State<LyricsScreen> {
   Widget _body(Lyrics? l) {
     if (nowLyrics.loading) {
       return const Center(
-          child: Text('Cargando la letra…', style: TextStyle(fontSize: 18, color: Colors.white70)));
+        child: Text(
+          'Cargando la letra…',
+          style: TextStyle(fontSize: 18, color: Colors.white70),
+        ),
+      );
     }
     if (l == null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Letra no disponible',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+            const Text(
+              'Letra no disponible',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 8),
             Text(
-              store.onlineLyrics
-                  ? 'No se encontró la letra de esta canción.'
-                  : 'La búsqueda de letras en internet está apagada en Ajustes.',
+              store.onlineLyrics ? 'No se encontró la letra de esta canción.' : 'La búsqueda de letras en internet está apagada en Ajustes.',
               style: const TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
@@ -146,7 +165,12 @@ class _LyricsScreenState extends State<LyricsScreen> {
       },
       child: ListView.builder(
         controller: _scroll,
-        padding: EdgeInsets.fromLTRB(24, 40, 24, MediaQuery.sizeOf(context).height * 0.45),
+        padding: EdgeInsets.fromLTRB(
+          24,
+          40,
+          24,
+          MediaQuery.sizeOf(context).height * 0.45,
+        ),
         itemCount: l.lines.length,
         itemBuilder: (context, i) {
           final line = l.lines[i];
@@ -198,8 +222,13 @@ class _LyricsScreenState extends State<LyricsScreen> {
           padding: const EdgeInsets.fromLTRB(24, 4, 24, 14),
           child: Row(
             children: [
-              Icon(l.source == 'internet' ? Icons.public_rounded : Icons.description_outlined,
-                  size: 14, color: Colors.white70),
+              Icon(
+                l.source == 'internet'
+                    ? Icons.public_rounded
+                    : Icons.description_outlined,
+                size: 14,
+                color: Colors.white70,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

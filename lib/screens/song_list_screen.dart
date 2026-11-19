@@ -38,11 +38,19 @@ class SongListScreen extends StatelessWidget {
                   tooltip: 'Opciones de la playlist',
                   onSelected: (v) async {
                     if (v == 'rename') {
-                      final n = await promptText(context, title: 'Renombrar playlist', initial: p.name);
+                      final n = await promptText(
+                        context,
+                        title: 'Renombrar playlist',
+                        initial: p.name,
+                      );
                       if (n != null) store.renamePlaylist(p, n);
                     } else if (v == 'delete') {
-                      final ok = await confirm(context, 'Borrar playlist',
-                          'Se borrará "${p.name}". Las canciones siguen en tu biblioteca.', 'Borrar');
+                      final ok = await confirm(
+                        context,
+                        'Borrar playlist',
+                        'Se borrará "${p.name}". Las canciones siguen en tu biblioteca.',
+                        'Borrar',
+                      );
                       if (ok) {
                         store.deletePlaylist(p);
                         if (context.mounted) Navigator.pop(context);
@@ -51,7 +59,10 @@ class SongListScreen extends StatelessWidget {
                   },
                   itemBuilder: (_) => const [
                     PopupMenuItem(value: 'rename', child: Text('Renombrar')),
-                    PopupMenuItem(value: 'delete', child: Text('Borrar playlist')),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Borrar playlist'),
+                    ),
                   ],
                 ),
             ],
@@ -67,7 +78,8 @@ class SongListScreen extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              subtitle ?? '${list.length} ${list.length == 1 ? 'canción' : 'canciones'}',
+                              subtitle ??
+                                  '${list.length} ${list.length == 1 ? 'canción' : 'canciones'}',
                               style: const TextStyle(color: kMuted),
                             ),
                           ),
@@ -75,15 +87,25 @@ class SongListScreen extends StatelessWidget {
                             tooltip: 'Aleatorio',
                             onPressed: list.isEmpty
                                 ? null
-                                : () => audio.playSongs(list,
-                                    start: DateTime.now().millisecond % list.length, shuffle: true),
+                                : () => audio.playSongs(
+                                    list,
+                                    start:
+                                        DateTime.now().millisecond %
+                                        list.length,
+                                    shuffle: true,
+                                  ),
                             icon: const Icon(Icons.shuffle_rounded),
                           ),
                           const SizedBox(width: 8),
                           IconButton.filled(
                             tooltip: 'Reproducir todo',
-                            onPressed: list.isEmpty ? null : () => audio.playSongs(list),
-                            icon: const Icon(Icons.play_arrow_rounded, color: Colors.black),
+                            onPressed: list.isEmpty
+                                ? null
+                                : () => audio.playSongs(list),
+                            icon: const Icon(
+                              Icons.play_arrow_rounded,
+                              color: Colors.black,
+                            ),
                           ),
                         ],
                       ),
@@ -106,18 +128,19 @@ class SongListScreen extends StatelessWidget {
                     SliverReorderableList(
                       itemCount: list.length,
                       onReorderItem: (a, b) => store.reorderPlaylist(p, a, b),
-                      itemBuilder: (context, i) => ReorderableDelayedDragStartListener(
-                        key: ValueKey('${list[i].id}-$i'),
-                        index: i,
-                        child: Material(
-                          color: kBg,
-                          child: SongTile(
-                            song: list[i],
-                            playlist: p,
-                            onTap: () => audio.playSongs(list, start: i),
+                      itemBuilder: (context, i) =>
+                          ReorderableDelayedDragStartListener(
+                            key: ValueKey('${list[i].id}-$i'),
+                            index: i,
+                            child: Material(
+                              color: kBg,
+                              child: SongTile(
+                                song: list[i],
+                                playlist: p,
+                                onTap: () => audio.playSongs(list, start: i),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
                     )
                   else
                     SliverList.builder(
@@ -144,10 +167,21 @@ class SongListScreen extends StatelessWidget {
   }
 }
 
-void openList(BuildContext context, String title, List<Song> Function() songs,
-    {String? subtitle, Playlist? playlist}) {
-  Navigator.of(context).push(MaterialPageRoute(
-    builder: (_) =>
-        SongListScreen(title: title, songs: songs, subtitle: subtitle, playlist: playlist),
-  ));
+void openList(
+  BuildContext context,
+  String title,
+  List<Song> Function() songs, {
+  String? subtitle,
+  Playlist? playlist,
+}) {
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => SongListScreen(
+        title: title,
+        songs: songs,
+        subtitle: subtitle,
+        playlist: playlist,
+      ),
+    ),
+  );
 }

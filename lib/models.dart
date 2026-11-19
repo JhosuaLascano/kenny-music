@@ -14,6 +14,8 @@ class Song {
     required this.addedAt,
     this.cover,
     this.genres = const [],
+    this.bitrate,
+    this.sampleRate,
   });
 
   final String id;
@@ -26,29 +28,37 @@ class Song {
   String? cover;
   List<String> genres;
 
+  /// kbps y Hz del archivo (pueden faltar).
+  int? bitrate;
+  int? sampleRate;
+
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'path': path,
-        'title': title,
-        'artist': artist,
-        'album': album,
-        'durationMs': durationMs,
-        'addedAt': addedAt,
-        'cover': cover,
-        'genres': genres,
-      };
+    'id': id,
+    'path': path,
+    'title': title,
+    'artist': artist,
+    'album': album,
+    'durationMs': durationMs,
+    'addedAt': addedAt,
+    'cover': cover,
+    'genres': genres,
+    'bitrate': bitrate,
+    'sampleRate': sampleRate,
+  };
 
   factory Song.fromJson(Map<String, dynamic> j) => Song(
-        id: j['id'] as String,
-        path: j['path'] as String,
-        title: j['title'] as String? ?? 'Sin título',
-        artist: j['artist'] as String? ?? 'Artista desconocido',
-        album: j['album'] as String? ?? 'Sin álbum',
-        durationMs: (j['durationMs'] as num?)?.toInt() ?? 0,
-        addedAt: (j['addedAt'] as num?)?.toInt() ?? 0,
-        cover: j['cover'] as String?,
-        genres: (j['genres'] as List?)?.cast<String>() ?? const [],
-      );
+    id: j['id'] as String,
+    path: j['path'] as String,
+    title: j['title'] as String? ?? 'Sin título',
+    artist: j['artist'] as String? ?? 'Artista desconocido',
+    album: j['album'] as String? ?? 'Sin álbum',
+    durationMs: (j['durationMs'] as num?)?.toInt() ?? 0,
+    addedAt: (j['addedAt'] as num?)?.toInt() ?? 0,
+    cover: j['cover'] as String?,
+    genres: (j['genres'] as List?)?.cast<String>() ?? const [],
+    bitrate: (j['bitrate'] as num?)?.toInt(),
+    sampleRate: (j['sampleRate'] as num?)?.toInt(),
+  );
 }
 
 class Playlist {
@@ -64,15 +74,19 @@ class Playlist {
   List<String> songIds;
   final int createdAt;
 
-  Map<String, dynamic> toJson() =>
-      {'id': id, 'name': name, 'songIds': songIds, 'createdAt': createdAt};
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'songIds': songIds,
+    'createdAt': createdAt,
+  };
 
   factory Playlist.fromJson(Map<String, dynamic> j) => Playlist(
-        id: j['id'] as String,
-        name: j['name'] as String,
-        songIds: (j['songIds'] as List).cast<String>(),
-        createdAt: (j['createdAt'] as num?)?.toInt() ?? 0,
-      );
+    id: j['id'] as String,
+    name: j['name'] as String,
+    songIds: (j['songIds'] as List).cast<String>(),
+    createdAt: (j['createdAt'] as num?)?.toInt() ?? 0,
+  );
 }
 
 /// Álbum o artista agrupado a partir de las canciones.

@@ -59,8 +59,13 @@ Lyrics? parseLyrics(String raw, String source) {
         2 => int.parse(frac) * 10,
         _ => int.parse(frac),
       };
-      stamps.add(Duration(
-          minutes: int.parse(m.group(1)!), seconds: int.parse(m.group(2)!), milliseconds: ms));
+      stamps.add(
+        Duration(
+          minutes: int.parse(m.group(1)!),
+          seconds: int.parse(m.group(2)!),
+          milliseconds: ms,
+        ),
+      );
       rest = rest.substring(m.end).trimLeft();
     }
     if (stamps.isNotEmpty) {
@@ -74,7 +79,12 @@ Lyrics? parseLyrics(String raw, String source) {
   if (timed.isNotEmpty) {
     timed.sort((a, b) => a.time!.compareTo(b.time!));
     // Las líneas vacías con tiempo marcan pausas instrumentales.
-    return Lyrics(timed.map((l) => LyricLine(l.time, l.text.isEmpty ? '♪' : l.text)).toList(), source);
+    return Lyrics(
+      timed
+          .map((l) => LyricLine(l.time, l.text.isEmpty ? '♪' : l.text))
+          .toList(),
+      source,
+    );
   }
   if (plain.isNotEmpty) return Lyrics(plain, source);
   return null;
@@ -123,8 +133,10 @@ class LyricsService {
     // 5. Internet. Si ya se buscó hace poco y no había nada, no se repite.
     if (store.onlineLyrics) {
       final none = File('${_dir()}/${s.id}.none');
-      final recentMiss = await none.exists() &&
-          DateTime.now().difference(await none.lastModified()) < const Duration(days: 3);
+      final recentMiss =
+          await none.exists() &&
+          DateTime.now().difference(await none.lastModified()) <
+              const Duration(days: 3);
       if (!recentMiss) {
         try {
           final r = await _fetchLrclib(s);
@@ -142,7 +154,9 @@ class LyricsService {
             await none.writeAsString('');
           }
         } catch (e) {
-          debugPrint('Letra en internet falló: $e'); // sin conexión: se intentará luego
+          debugPrint(
+            'Letra en internet falló: $e',
+          ); // sin conexión: se intentará luego
         }
       }
     }
@@ -150,8 +164,13 @@ class LyricsService {
   }
 
   static String _cleanTitle(String t) => t
-      .replaceAll(RegExp(r'[\(\[][^\)\]]*(official|oficial|video|audio|lyric|letra|visualizer|hd|4k)[^\)\]]*[\)\]]',
-          caseSensitive: false), '')
+      .replaceAll(
+        RegExp(
+          r'[\(\[][^\)\]]*(official|oficial|video|audio|lyric|letra|visualizer|hd|4k)[^\)\]]*[\)\]]',
+          caseSensitive: false,
+        ),
+        '',
+      )
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
 
@@ -165,14 +184,19 @@ class LyricsService {
     ];
     for (final q in queries) {
       final res = await http
-          .get(Uri.https('lrclib.net', '/api/search', q), headers: {'User-Agent': 'KennyMusic/1.0'})
+          .get(
+            Uri.https('lrclib.net', '/api/search', q),
+            headers: {'User-Agent': 'KennyMusic/1.0'},
+          )
           .timeout(const Duration(seconds: 12));
       if (res.statusCode != 200) continue;
-      final list = (jsonDecode(utf8.decode(res.bodyBytes)) as List).cast<Map<String, dynamic>>();
+      final list = (jsonDecode(utf8.decode(res.bodyBytes)) as List)
+          .cast<Map<String, dynamic>>();
       if (list.isEmpty) continue;
       final dur = s.durationMs / 1000.0;
-      double diff(Map<String, dynamic> m) =>
-          dur <= 0 ? 0 : (((m['duration'] as num?)?.toDouble() ?? 0) - dur).abs();
+      double diff(Map<String, dynamic> m) => dur <= 0
+          ? 0
+          : (((m['duration'] as num?)?.toDouble() ?? 0) - dur).abs();
       final ok = list.where((m) => dur <= 0 || diff(m) <= 8).toList()
         ..sort((a, b) {
           final sa = a['syncedLyrics'] != null ? 0 : 1;
@@ -185,7 +209,10 @@ class LyricsService {
       final synced = best['syncedLyrics'] as String?;
       final plain = best['plainLyrics'] as String?;
       if ((synced ?? '').trim().isNotEmpty || (plain ?? '').trim().isNotEmpty) {
-        return ((synced ?? '').trim().isEmpty ? null : synced, (plain ?? '').trim().isEmpty ? null : plain);
+        return (
+          (synced ?? '').trim().isEmpty ? null : synced,
+          (plain ?? '').trim().isEmpty ? null : plain,
+        );
       }
     }
     return null;

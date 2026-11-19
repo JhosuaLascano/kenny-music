@@ -3,11 +3,12 @@ import 'dart:ui';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../app_state.dart';
 import '../models.dart';
 import '../scanner.dart';
-import '../screens/player_screen.dart';
+import '../screens/player_screen.dart' show openPlayerScreen;
 import '../theme.dart';
 
 Color accentOf(BuildContext context) => Theme.of(context).colorScheme.primary;
@@ -23,7 +24,12 @@ const _placeholderPairs = [
 
 /// Portada de la canción (o un degradado con una nota si no tiene).
 class CoverArt extends StatelessWidget {
-  const CoverArt({super.key, required this.song, this.size = 48, this.radius = 8});
+  const CoverArt({
+    super.key,
+    required this.song,
+    this.size = 48,
+    this.radius = 8,
+  });
   final Song? song;
   final double size;
   final double radius;
@@ -49,23 +55,37 @@ class CoverArt extends StatelessWidget {
   }
 
   Widget _placeholder() {
-    final pair = _placeholderPairs[(song?.id.hashCode ?? 0).abs() % _placeholderPairs.length];
+    final pair =
+        _placeholderPairs[(song?.id.hashCode ?? 0).abs() %
+            _placeholderPairs.length];
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
         gradient: LinearGradient(
-            begin: Alignment.topLeft, end: Alignment.bottomRight, colors: pair),
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: pair,
+        ),
       ),
-      child: Icon(Icons.music_note_rounded, color: Colors.white70, size: size * 0.42),
+      child: Icon(
+        Icons.music_note_rounded,
+        color: Colors.white70,
+        size: size * 0.42,
+      ),
     );
   }
 }
 
 /// Fila de canción con estrella de favorito y menú.
 class SongTile extends StatelessWidget {
-  const SongTile({super.key, required this.song, required this.onTap, this.playlist});
+  const SongTile({
+    super.key,
+    required this.song,
+    required this.onTap,
+    this.playlist,
+  });
   final Song song;
   final VoidCallback onTap;
   final Playlist? playlist;
@@ -91,30 +111,38 @@ class SongTile extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: playing ? accent : kText)),
+                      Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: playing ? accent : kText,
+                        ),
+                      ),
                       const SizedBox(height: 2),
-                      Text(song.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 13, color: kMuted)),
+                      Text(
+                        song.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13, color: kMuted),
+                      ),
                     ],
                   ),
                 ),
                 IconButton(
                   tooltip: fav ? 'Quitar de favoritas' : 'Agregar a favoritas',
                   onPressed: () => store.toggleFavorite(song.id),
-                  icon: Icon(fav ? Icons.star_rounded : Icons.star_border_rounded,
-                      color: fav ? accent : const Color(0xFF71717A)),
+                  icon: Icon(
+                    fav ? Icons.star_rounded : Icons.star_border_rounded,
+                    color: fav ? accent : const Color(0xFF71717A),
+                  ),
                 ),
                 IconButton(
                   tooltip: 'Más opciones',
-                  onPressed: () => showSongMenu(context, song, playlist: playlist),
+                  onPressed: () =>
+                      showSongMenu(context, song, playlist: playlist),
                   icon: const Icon(Icons.more_vert_rounded, color: kMuted),
                 ),
               ],
@@ -129,11 +157,17 @@ class SongTile extends StatelessWidget {
 void toast(BuildContext context, String msg) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 2)));
+    ..showSnackBar(
+      SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
+    );
 }
 
-Future<String?> promptText(BuildContext context,
-    {required String title, String initial = '', String action = 'Guardar'}) {
+Future<String?> promptText(
+  BuildContext context, {
+  required String title,
+  String initial = '',
+  String action = 'Guardar',
+}) {
   final ctrl = TextEditingController(text: initial);
   return showDialog<String>(
     context: context,
@@ -147,22 +181,39 @@ Future<String?> promptText(BuildContext context,
         onSubmitted: (v) => Navigator.pop(c, v.trim()),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancelar')),
-        FilledButton(onPressed: () => Navigator.pop(c, ctrl.text.trim()), child: Text(action)),
+        TextButton(
+          onPressed: () => Navigator.pop(c),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(c, ctrl.text.trim()),
+          child: Text(action),
+        ),
       ],
     ),
   ).then((v) => (v == null || v.isEmpty) ? null : v);
 }
 
-Future<bool> confirm(BuildContext context, String title, String body, String action) async {
+Future<bool> confirm(
+  BuildContext context,
+  String title,
+  String body,
+  String action,
+) async {
   final r = await showDialog<bool>(
     context: context,
     builder: (c) => AlertDialog(
       title: Text(title),
       content: Text(body),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
-        FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(action)),
+        TextButton(
+          onPressed: () => Navigator.pop(c, false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(c, true),
+          child: Text(action),
+        ),
       ],
     ),
   );
@@ -179,8 +230,16 @@ void showSongMenu(BuildContext context, Song song, {Playlist? playlist}) {
         children: [
           ListTile(
             leading: CoverArt(song: song, size: 44),
-            title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis),
+            title: Text(
+              song.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text(
+              song.artist,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           const Divider(height: 1),
           ListTile(
@@ -225,12 +284,13 @@ void showSongMenu(BuildContext context, Song song, {Playlist? playlist}) {
               Navigator.pop(c);
               final imported = song.path.startsWith('app:');
               final ok = await confirm(
-                  context,
-                  'Quitar canción',
-                  imported
-                      ? 'Se borrará "${song.title}" de Kenny Music.'
-                      : 'Se quitará "${song.title}" de la biblioteca. El archivo sigue en tu celular y volverá a aparecer si buscas música de nuevo.',
-                  'Quitar');
+                context,
+                'Quitar canción',
+                imported
+                    ? 'Se borrará "${song.title}" de Kenny Music.'
+                    : 'Se quitará "${song.title}" de la biblioteca. El archivo sigue en tu celular y volverá a aparecer si buscas música de nuevo.',
+                'Quitar',
+              );
               if (ok) {
                 audio.forgetSong(song.id);
                 store.removeSong(song.id);
@@ -250,27 +310,37 @@ void showAddToPlaylist(BuildContext context, List<String> ids) {
     isScrollControlled: true,
     builder: (c) => SafeArea(
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.6),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.6,
+        ),
         child: ListView(
           shrinkWrap: true,
           children: [
             const Padding(
               padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: Text('Agregar a playlist',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              child: Text(
+                'Agregar a playlist',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
             ),
             ListTile(
               leading: Container(
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                    color: kSurface2, borderRadius: BorderRadius.circular(8)),
+                  color: kSurface2,
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 child: const Icon(Icons.add_rounded),
               ),
               title: const Text('Nueva playlist'),
               onTap: () async {
                 Navigator.pop(c);
-                final name = await promptText(context, title: 'Nueva playlist', action: 'Crear');
+                final name = await promptText(
+                  context,
+                  title: 'Nueva playlist',
+                  action: 'Crear',
+                );
                 if (name == null) return;
                 final p = store.createPlaylist(name);
                 store.addToPlaylist(p, ids);
@@ -285,7 +355,12 @@ void showAddToPlaylist(BuildContext context, List<String> ids) {
                 onTap: () {
                   Navigator.pop(c);
                   final n = store.addToPlaylist(p, ids);
-                  toast(context, n == 0 ? 'Ya estaba en "${p.name}"' : 'Agregada a "${p.name}"');
+                  toast(
+                    context,
+                    n == 0
+                        ? 'Ya estaba en "${p.name}"'
+                        : 'Agregada a "${p.name}"',
+                  );
                 },
               ),
           ],
@@ -307,8 +382,15 @@ class PlaylistCover extends StatelessWidget {
       return Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(color: kSurface2, borderRadius: BorderRadius.circular(8)),
-        child: Icon(Icons.queue_music_rounded, color: kMuted, size: size * 0.45),
+        decoration: BoxDecoration(
+          color: kSurface2,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          Icons.queue_music_rounded,
+          color: kMuted,
+          size: size * 0.45,
+        ),
       );
     }
     return CoverArt(song: songs.first, size: size);
@@ -317,7 +399,12 @@ class PlaylistCover extends StatelessWidget {
 
 /// Fondo de vidrio translúcido (estilo "liquid glass").
 class Glass extends StatelessWidget {
-  const Glass({super.key, required this.child, this.radius = 33, this.dark = false});
+  const Glass({
+    super.key,
+    required this.child,
+    this.radius = 33,
+    this.dark = false,
+  });
   final Widget child;
   final double radius;
   final bool dark;
@@ -328,7 +415,13 @@ class Glass extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: r,
-        boxShadow: const [BoxShadow(color: Color(0x73000000), blurRadius: 30, offset: Offset(0, 10))],
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x73000000),
+            blurRadius: 30,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
       child: ClipRRect(
         borderRadius: r,
@@ -345,7 +438,9 @@ class Glass extends StatelessWidget {
                       end: Alignment.bottomCenter,
                       colors: [Color(0x33FFFFFF), Color(0x14FFFFFF)],
                     ),
-              border: Border.all(color: dark ? const Color(0x24FFFFFF) : const Color(0x38FFFFFF)),
+              border: Border.all(
+                color: dark ? const Color(0x24FFFFFF) : const Color(0x38FFFFFF),
+              ),
             ),
             child: child,
           ),
@@ -355,12 +450,15 @@ class Glass extends StatelessWidget {
   }
 }
 
-class GlassNavBar extends StatelessWidget {
+/// Barra de navegación de vidrio. Se puede tocar o deslizar el dedo por encima:
+/// la burbuja sigue al dedo, cambia de pestaña al pasar y al soltar se
+/// acomoda con un pequeño rebote.
+class GlassNavBar extends StatefulWidget {
   const GlassNavBar({super.key, required this.index, required this.onTap});
   final int index;
   final ValueChanged<int> onTap;
 
-  static const _items = [
+  static const items = [
     (Icons.home_rounded, 'Inicio'),
     (Icons.grid_view_rounded, 'Explorar'),
     (Icons.library_music_rounded, 'Biblioteca'),
@@ -368,72 +466,216 @@ class GlassNavBar extends StatelessWidget {
   ];
 
   @override
+  State<GlassNavBar> createState() => _GlassNavBarState();
+}
+
+class _GlassNavBarState extends State<GlassNavBar> {
+  double? _fingerX; // posición del dedo mientras se arrastra
+  bool _pressed = false;
+  static const _pad = 6.0;
+
+  int _indexAt(double x, double itemW) =>
+      ((x - _pad) / itemW).floor().clamp(0, GlassNavBar.items.length - 1);
+
+  void _move(double x, double itemW) {
+    final i = _indexAt(x, itemW);
+    setState(() => _fingerX = x);
+    if (i != widget.index) {
+      HapticFeedback.selectionClick();
+      widget.onTap(i);
+    }
+  }
+
+  void _release() => setState(() {
+    _fingerX = null;
+    _pressed = false;
+  });
+
+  @override
   Widget build(BuildContext context) {
     final accent = accentOf(context);
+    final n = GlassNavBar.items.length;
     return Glass(
       child: SizedBox(
         height: 66,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          child: Row(
-            children: [
-              for (var i = 0; i < _items.length; i++)
-                Expanded(
-                  child: Semantics(
-                    button: true,
-                    selected: i == index,
-                    label: _items[i].$2,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => onTap(i),
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final itemW = (c.maxWidth - _pad * 2) / n;
+            final dragging = _fingerX != null;
+            final bubbleLeft = dragging
+                ? (_fingerX! - itemW / 2).clamp(_pad, c.maxWidth - _pad - itemW)
+                : _pad + widget.index * itemW;
+            final lit = dragging ? _indexAt(_fingerX!, itemW) : widget.index;
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (d) => setState(() => _pressed = true),
+              onTapUp: (d) {
+                final i = _indexAt(d.localPosition.dx, itemW);
+                if (i != widget.index) {
+                  HapticFeedback.selectionClick();
+                  widget.onTap(i);
+                }
+                _release();
+              },
+              onTapCancel: () => setState(() => _pressed = false),
+              onHorizontalDragStart: (d) {
+                _pressed = true;
+                _move(d.localPosition.dx, itemW);
+              },
+              onHorizontalDragUpdate: (d) => _move(d.localPosition.dx, itemW),
+              onHorizontalDragEnd: (_) => _release(),
+              onHorizontalDragCancel: _release,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // Burbuja de vidrio (se agranda como lupa mientras se toca)
+                  AnimatedPositioned(
+                    duration: dragging
+                        ? Duration.zero
+                        : const Duration(milliseconds: 520),
+                    curve: Curves.easeOutBack,
+                    left: bubbleLeft,
+                    top: 5,
+                    width: itemW,
+                    height: 56,
+                    child: AnimatedScale(
+                      scale: _pressed || dragging ? 1.16 : 1,
+                      duration: const Duration(milliseconds: 380),
+                      curve: _pressed || dragging
+                          ? Curves.easeOutBack
+                          : Curves.elasticOut,
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.easeOut,
-                        height: 56,
+                        duration: const Duration(milliseconds: 250),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(28),
-                          color: i == index ? const Color(0x24FFFFFF) : Colors.transparent,
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(_items[i].$1, size: 24, color: i == index ? accent : kMuted),
-                            const SizedBox(height: 2),
-                            Text(_items[i].$2,
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: i == index ? accent : kMuted)),
-                          ],
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: _pressed || dragging
+                                ? const [Color(0x40FFFFFF), Color(0x1AFFFFFF)]
+                                : const [Color(0x2EFFFFFF), Color(0x14FFFFFF)],
+                          ),
+                          border: Border.all(
+                            color: _pressed || dragging
+                                ? const Color(0x66FFFFFF)
+                                : const Color(0x26FFFFFF),
+                          ),
+                          boxShadow: _pressed || dragging
+                              ? [
+                                  BoxShadow(
+                                    color: accent.withValues(alpha: 0.25),
+                                    blurRadius: 18,
+                                  ),
+                                ]
+                              : const [],
                         ),
                       ),
                     ),
                   ),
-                ),
-            ],
-          ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: _pad),
+                    child: Row(
+                      children: [
+                        for (var i = 0; i < n; i++)
+                          Expanded(
+                            child: Semantics(
+                              button: true,
+                              selected: i == widget.index,
+                              label: GlassNavBar.items[i].$2,
+                              onTap: () => widget.onTap(i),
+                              child: AnimatedScale(
+                                scale: i == lit && dragging ? 1.12 : 1,
+                                duration: const Duration(milliseconds: 250),
+                                curve: Curves.easeOutBack,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      GlassNavBar.items[i].$1,
+                                      size: 24,
+                                      color: i == lit ? accent : kMuted,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      GlassNavBar.items[i].$2,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: i == lit ? accent : kMuted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
   }
 }
 
-void openPlayer(BuildContext context) {
-  Navigator.of(context, rootNavigator: true).push(PageRouteBuilder(
-    pageBuilder: (_, _, _) => const PlayerScreen(),
-    transitionDuration: const Duration(milliseconds: 320),
-    reverseTransitionDuration: const Duration(milliseconds: 260),
-    transitionsBuilder: (_, a, _, child) => SlideTransition(
-      position: Tween(begin: const Offset(0, 1), end: Offset.zero)
-          .animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
-      child: child,
-    ),
-  ));
+void openPlayer(BuildContext context) => openPlayerScreen(context);
+
+/// Mini-reproductor flotante de vidrio.
+/// Deslizar a la izquierda = siguiente, a la derecha = anterior,
+/// hacia arriba (o tocar) = abrir el reproductor.
+class MiniPlayer extends StatefulWidget {
+  const MiniPlayer({super.key});
+
+  @override
+  State<MiniPlayer> createState() => _MiniPlayerState();
 }
 
-/// Mini-reproductor flotante.
-class MiniPlayer extends StatelessWidget {
-  const MiniPlayer({super.key});
+class _MiniPlayerState extends State<MiniPlayer> {
+  double _dx = 0;
+  bool _dragging = false;
+
+  void _endDrag(double velocity) {
+    final w = context.size?.width ?? 300;
+    final next = _dx < -w * 0.25 || velocity < -600;
+    final prev = _dx > w * 0.25 || velocity > 600;
+    if (next || prev) {
+      HapticFeedback.lightImpact();
+      // Sale por un lado y entra la nueva canción por el otro.
+      setState(() {
+        _dragging = false;
+        _dx = next ? -w : w;
+      });
+      Future.delayed(const Duration(milliseconds: 160), () {
+        if (next) {
+          audio.skipToNext();
+        } else {
+          audio.skipToPrevious();
+        }
+        if (!mounted) return;
+        setState(() {
+          _dragging = true;
+          _dx = next ? w * 0.6 : -w * 0.6;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() {
+              _dragging = false;
+              _dx = 0;
+            });
+          }
+        });
+      });
+    } else {
+      setState(() {
+        _dragging = false;
+        _dx = 0;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -448,15 +690,24 @@ class MiniPlayer extends StatelessWidget {
           onVerticalDragEnd: (d) {
             if ((d.primaryVelocity ?? 0) < -200) openPlayer(context);
           },
+          onHorizontalDragStart: (_) => setState(() => _dragging = true),
+          onHorizontalDragUpdate: (d) => setState(() => _dx += d.delta.dx),
+          onHorizontalDragEnd: (d) => _endDrag(d.velocity.pixelsPerSecond.dx),
+          onHorizontalDragCancel: () => _endDrag(0),
           child: Glass(
-            radius: 20,
+            radius: 31,
             dark: true,
             child: SizedBox(
               height: 62,
               child: Stack(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 8, 4, 8),
+                  AnimatedContainer(
+                    duration: _dragging
+                        ? Duration.zero
+                        : const Duration(milliseconds: 450),
+                    curve: Curves.easeOutBack,
+                    transform: Matrix4.translationValues(_dx, 0, 0),
+                    padding: const EdgeInsets.fromLTRB(9, 8, 6, 8),
                     child: Row(
                       children: [
                         CoverArt(song: song, size: 44),
@@ -466,14 +717,24 @@ class MiniPlayer extends StatelessWidget {
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(song.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                              Text(song.artist,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 12, color: kMuted)),
+                              Text(
+                                song.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                song.artist,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: kMuted,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -484,8 +745,12 @@ class MiniPlayer extends StatelessWidget {
                             return IconButton(
                               tooltip: playing ? 'Pausar' : 'Reproducir',
                               onPressed: audio.togglePlay,
-                              icon: Icon(playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                                  size: 30),
+                              icon: Icon(
+                                playing
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
+                                size: 30,
+                              ),
                             );
                           },
                         ),
@@ -535,12 +800,17 @@ class EmptyLibrary extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
       child: Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: kSurface, borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(
+          color: kSurface,
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Aún no hay música',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            const Text(
+              'Aún no hay música',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 6),
             Text(
               Platform.isAndroid
@@ -586,18 +856,22 @@ Future<void> runScan(BuildContext context) async {
   final n = await scanDevice();
   if (!context.mounted) return;
   toast(
-      context,
-      n < 0
-          ? 'Sin permiso para leer la música. Actívalo en los ajustes del celular.'
-          : n == 0
-              ? 'No hay canciones nuevas'
-              : 'Se agregaron $n canciones');
+    context,
+    n < 0
+        ? 'Sin permiso para leer la música. Actívalo en los ajustes del celular.'
+        : n == 0
+        ? 'No hay canciones nuevas'
+        : 'Se agregaron $n canciones',
+  );
 }
 
 Future<void> runImport(BuildContext context) async {
   final n = await importFiles();
   if (!context.mounted || n == null) return;
-  toast(context, n == 0 ? 'No se importó ninguna canción' : 'Se importaron $n canciones');
+  toast(
+    context,
+    n == 0 ? 'No se importó ninguna canción' : 'Se importaron $n canciones',
+  );
 }
 
 /// Aviso de "buscando…" mientras se leen canciones.
@@ -613,11 +887,17 @@ class ScanBanner extends StatelessWidget {
         return Container(
           margin: const EdgeInsets.fromLTRB(20, 8, 20, 0),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(color: kSurface, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(
+            color: kSurface,
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Row(
             children: [
               const SizedBox(
-                  width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
               const SizedBox(width: 12),
               Expanded(child: Text(store.scanMessage ?? 'Buscando…')),
             ],
@@ -641,7 +921,11 @@ class SectionTitle extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-              child: Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700))),
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+          ),
           if (action != null)
             TextButton(
               onPressed: onAction,

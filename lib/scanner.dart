@@ -55,7 +55,9 @@ Future<int> scanDevice() async {
       await _walk(r, found, 0);
     }
     store.removeMissing();
-    final fresh = found.where((p) => !store.songs.containsKey(songIdFor(p))).toList();
+    final fresh = found
+        .where((p) => !store.songs.containsKey(songIdFor(p)))
+        .toList();
     final added = await _process(fresh, fresh);
     return added;
   } finally {
@@ -114,7 +116,8 @@ Future<int?> importFiles() async {
       }
       await File(src).copy(dest.path);
       try {
-        if (!Platform.isAndroid) await File(src).delete(); // copia temporal del selector
+        if (!Platform.isAndroid)
+          await File(src).delete(); // copia temporal del selector
       } catch (_) {}
       real.add(dest.path);
       stored.add('app:music/${fileNameOf(dest.path)}');
@@ -139,7 +142,9 @@ Future<int> _process(List<String> realPaths, List<String> storedPaths) async {
     final stored = storedPaths.sublist(i, end);
     final maps = await Isolate.run(() => _readBatch(real, stored, base));
     final now = DateTime.now().millisecondsSinceEpoch;
-    store.addSongs(maps.map((m) => Song(
+    store.addSongs(
+      maps.map(
+        (m) => Song(
           id: m['id'] as String,
           path: m['path'] as String,
           title: m['title'] as String,
@@ -149,13 +154,21 @@ Future<int> _process(List<String> realPaths, List<String> storedPaths) async {
           addedAt: now,
           cover: m['cover'] as String?,
           genres: (m['genres'] as List).cast<String>(),
-        )));
+          bitrate: m['bitrate'] as int?,
+          sampleRate: m['sampleRate'] as int?,
+        ),
+      ),
+    );
     added += maps.length;
   }
   return added;
 }
 
-List<Map<String, Object?>> _readBatch(List<String> real, List<String> stored, String base) {
+List<Map<String, Object?>> _readBatch(
+  List<String> real,
+  List<String> stored,
+  String base,
+) {
   final out = <Map<String, Object?>>[];
   for (var i = 0; i < real.length; i++) {
     final path = real[i];
@@ -164,6 +177,7 @@ List<Map<String, Object?>> _readBatch(List<String> real, List<String> stored, St
     String? title, artist, album, cover;
     var durationMs = 0;
     var genres = <String>[];
+    int? bitrate, sampleRate;
     try {
       final m = readMetadata(File(path), getImage: true);
       title = m.title;
@@ -171,10 +185,14 @@ List<Map<String, Object?>> _readBatch(List<String> real, List<String> stored, St
       album = m.album;
       durationMs = m.duration?.inMilliseconds ?? 0;
       genres = m.genres;
+      final br = m.bitrate;
+      if (br != null && br > 0) bitrate = br > 10000 ? (br / 1000).round() : br;
+      sampleRate = m.sampleRate;
       if (m.pictures.isNotEmpty) {
         final pic = m.pictures.firstWhere(
-            (p) => p.pictureType == PictureType.coverFront,
-            orElse: () => m.pictures.first);
+          (p) => p.pictureType == PictureType.coverFront,
+          orElse: () => m.pictures.first,
+        );
         final ext = pic.mimetype.contains('png') ? 'png' : 'jpg';
         File('$base/covers/$id.$ext').writeAsBytesSync(pic.bytes);
         cover = 'app:covers/$id.$ext';
@@ -186,23 +204,36 @@ List<Map<String, Object?>> _readBatch(List<String> real, List<String> stored, St
     } catch (_) {
       // Archivo sin etiquetas o formato raro: se usa el nombre del archivo.
     }
-    if ((title == null || title.trim().isEmpty) || (artist == null || artist.trim().isEmpty)) {
+    if ((title == null || title.trim().isEmpty) ||
+        (artist == null || artist.trim().isEmpty)) {
       // "Artista - Título.mp3"
       final parts = fileTitle.split(' - ');
       if (parts.length >= 2) {
-        artist = (artist == null || artist.trim().isEmpty) ? parts.first.trim() : artist;
-        title = (title == null || title.trim().isEmpty) ? parts.sublist(1).join(' - ').trim() : title;
+        artist = (artist == null || artist.trim().isEmpty)
+            ? parts.first.trim()
+            : artist;
+        title = (title == null || title.trim().isEmpty)
+            ? parts.sublist(1).join(' - ').trim()
+            : title;
       }
     }
     out.add({
       'id': id,
       'path': stored[i],
-      'title': (title == null || title.trim().isEmpty) ? fileTitle : title.trim(),
-      'artist': (artist == null || artist.trim().isEmpty) ? 'Artista desconocido' : artist.trim(),
-      'album': (album == null || album.trim().isEmpty) ? 'Sin álbum' : album.trim(),
+      'title': (title == null || title.trim().isEmpty)
+          ? fileTitle
+          : title.trim(),
+      'artist': (artist == null || artist.trim().isEmpty)
+          ? 'Artista desconocido'
+          : artist.trim(),
+      'album': (album == null || album.trim().isEmpty)
+          ? 'Sin álbum'
+          : album.trim(),
       'durationMs': durationMs,
       'cover': cover,
       'genres': genres,
+      'bitrate': bitrate,
+      'sampleRate': sampleRate,
     });
   }
   return out;

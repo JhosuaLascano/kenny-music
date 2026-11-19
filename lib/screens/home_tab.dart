@@ -33,17 +33,29 @@ class HomeTab extends StatelessWidget {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(9),
-                      child: Image.asset('assets/logo.png', width: 34, height: 34),
+                      child: Image.asset(
+                        'assets/logo.png',
+                        width: 34,
+                        height: 34,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text.rich(
-                        TextSpan(children: [
-                          const TextSpan(text: 'Kenny '),
-                          TextSpan(text: 'Music', style: TextStyle(color: accent)),
-                        ]),
+                        TextSpan(
+                          children: [
+                            const TextSpan(text: 'Kenny '),
+                            TextSpan(
+                              text: 'Music',
+                              style: TextStyle(color: accent),
+                            ),
+                          ],
+                        ),
                         style: const TextStyle(
-                            fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                        ),
                       ),
                     ),
                     IconButton(
@@ -61,8 +73,11 @@ class HomeTab extends StatelessWidget {
                     ),
                     IconButton(
                       tooltip: 'Ajustes',
-                      onPressed: () => Navigator.of(context)
-                          .push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const SettingsScreen(),
+                        ),
+                      ),
                       icon: const Icon(Icons.settings_outlined),
                     ),
                   ],
@@ -71,10 +86,16 @@ class HomeTab extends StatelessWidget {
               const ScanBanner(),
               if (empty) const EmptyLibrary(),
               if (!empty) ...[
-                SectionTitle(store.recentSongs.isEmpty ? 'Recién agregadas' : 'Recientes',
-                    action: 'Ver todo', onAction: () => onGoTo(2)),
+                SectionTitle(
+                  store.recentSongs.isEmpty ? 'Recién agregadas' : 'Recientes',
+                  action: 'Ver todo',
+                  onAction: () => onGoTo(2),
+                ),
                 for (var i = 0; i < recent.length; i++)
-                  SongTile(song: recent[i], onTap: () => audio.playSongs(recent, start: i)),
+                  SongTile(
+                    song: recent[i],
+                    onTap: () => audio.playSongs(recent, start: i),
+                  ),
                 const SectionTitle('Para ti'),
                 SizedBox(
                   height: 124,
@@ -86,7 +107,11 @@ class HomeTab extends StatelessWidget {
                         color: accent,
                         icon: Icons.star_rounded,
                         label: 'Favoritas',
-                        onTap: () => openList(context, 'Favoritas', () => store.favoriteSongs),
+                        onTap: () => openList(
+                          context,
+                          'Favoritas',
+                          () => store.favoriteSongs,
+                        ),
                       ),
                       _MoodCard(
                         color: const Color(0xFF5B8DEF),
@@ -94,8 +119,11 @@ class HomeTab extends StatelessWidget {
                         label: 'Aleatorio',
                         onTap: () {
                           final all = store.allSongs;
-                          audio.playSongs(all,
-                              start: DateTime.now().millisecond % all.length, shuffle: true);
+                          audio.playSongs(
+                            all,
+                            start: DateTime.now().millisecond % all.length,
+                            shuffle: true,
+                          );
                           openPlayer(context);
                         },
                       ),
@@ -103,15 +131,21 @@ class HomeTab extends StatelessWidget {
                         color: const Color(0xFFE2557A),
                         icon: Icons.bolt_rounded,
                         label: 'Más escuchadas',
-                        onTap: () => openList(context, 'Más escuchadas',
-                            () => store.mostPlayed.take(50).toList()),
+                        onTap: () => openList(
+                          context,
+                          'Más escuchadas',
+                          () => store.mostPlayed.take(50).toList(),
+                        ),
                       ),
                       _MoodCard(
                         color: const Color(0xFF34D399),
                         icon: Icons.new_releases_rounded,
                         label: 'Recién agregadas',
-                        onTap: () => openList(context, 'Recién agregadas',
-                            () => store.newest.take(50).toList()),
+                        onTap: () => openList(
+                          context,
+                          'Recién agregadas',
+                          () => store.newest.take(50).toList(),
+                        ),
                       ),
                     ],
                   ),
@@ -137,8 +171,12 @@ class HomeTab extends StatelessWidget {
 }
 
 class _MoodCard extends StatelessWidget {
-  const _MoodCard(
-      {required this.color, required this.icon, required this.label, required this.onTap});
+  const _MoodCard({
+    required this.color,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
   final Color color;
   final IconData icon;
   final String label;
@@ -163,9 +201,14 @@ class _MoodCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Icon(icon, size: 34, color: const Color(0xFF0B0B0D)),
-                  Text(label,
-                      style: const TextStyle(
-                          color: Color(0xFF0B0B0D), fontSize: 16, fontWeight: FontWeight.w800)),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Color(0xFF0B0B0D),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -184,7 +227,12 @@ class AlbumCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => openList(context, group.name, () => _albumSongs(group), subtitle: group.subtitle),
+      onTap: () => openList(
+        context,
+        group.name,
+        () => _albumSongs(group),
+        subtitle: group.subtitle,
+      ),
       child: SizedBox(
         width: size,
         child: Column(
@@ -192,14 +240,18 @@ class AlbumCard extends StatelessWidget {
           children: [
             CoverArt(song: group.first, size: size, radius: 12),
             const SizedBox(height: 8),
-            Text(group.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w600)),
-            Text(group.subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: kMuted, fontSize: 12)),
+            Text(
+              group.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            Text(
+              group.subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: kMuted, fontSize: 12),
+            ),
           ],
         ),
       ),
@@ -207,7 +259,8 @@ class AlbumCard extends StatelessWidget {
   }
 }
 
-List<Song> _albumSongs(SongGroup g) => store.songs.values
-    .where((s) => s.album == g.name && s.artist == g.subtitle)
-    .toList()
-  ..sort((a, b) => a.title.compareTo(b.title));
+List<Song> _albumSongs(SongGroup g) =>
+    store.songs.values
+        .where((s) => s.album == g.name && s.artist == g.subtitle)
+        .toList()
+      ..sort((a, b) => a.title.compareTo(b.title));

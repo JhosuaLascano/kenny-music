@@ -20,11 +20,13 @@ Future<void> main() async {
     ),
   );
   nowLyrics.follow(audio.mediaItem);
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
-    systemNavigationBarColor: Colors.transparent,
-  ));
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: Colors.transparent,
+    ),
+  );
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   runApp(const KennyMusicApp());
 }
@@ -37,11 +39,15 @@ class KennyMusicApp extends StatelessWidget {
     return ListenableBuilder(
       listenable: store,
       builder: (context, _) {
-        final accent = accents[store.accentIndex.clamp(0, accents.length - 1)].color;
+        final accent =
+            accents[store.accentIndex.clamp(0, accents.length - 1)].color;
         return MaterialApp(
           title: 'Kenny Music',
           debugShowCheckedModeBanner: false,
           theme: buildTheme(accent),
+          navigatorKey: navKey,
+          builder: (context, child) =>
+              ColoredBox(color: Colors.black, child: child),
           home: const HomeShell(),
         );
       },

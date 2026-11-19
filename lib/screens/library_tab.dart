@@ -33,8 +33,13 @@ class _LibraryTabState extends State<LibraryTab> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Biblioteca',
-                          style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
+                      const Text(
+                        'Biblioteca',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                       const SizedBox(height: 14),
                       Wrap(
                         spacing: 8,
@@ -57,8 +62,13 @@ class _LibraryTabState extends State<LibraryTab> {
                 ),
               ),
               const SliverToBoxAdapter(child: ScanBanner()),
-              if (_mode == 1) ..._playlists(context) else ..._songs(context, songs),
-              const SliverToBoxAdapter(child: SizedBox(height: kTabBottomSpace)),
+              if (_mode == 1)
+                ..._playlists(context)
+              else
+                ..._songs(context, songs),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: kTabBottomSpace),
+              ),
             ],
           );
         },
@@ -67,7 +77,8 @@ class _LibraryTabState extends State<LibraryTab> {
   }
 
   List<Widget> _songs(BuildContext context, List songs) {
-    if (store.songs.isEmpty) return [const SliverToBoxAdapter(child: EmptyLibrary())];
+    if (store.songs.isEmpty)
+      return [const SliverToBoxAdapter(child: EmptyLibrary())];
     return [
       SliverToBoxAdapter(
         child: Padding(
@@ -86,14 +97,19 @@ class _LibraryTabState extends State<LibraryTab> {
                 tooltip: 'Aleatorio',
                 onPressed: songs.isEmpty
                     ? null
-                    : () => audio.playSongs(songs.cast(),
-                        start: DateTime.now().millisecond % songs.length, shuffle: true),
+                    : () => audio.playSongs(
+                        songs.cast(),
+                        start: DateTime.now().millisecond % songs.length,
+                        shuffle: true,
+                      ),
                 icon: const Icon(Icons.shuffle_rounded),
               ),
               const SizedBox(width: 8),
               IconButton.filled(
                 tooltip: 'Reproducir todo',
-                onPressed: songs.isEmpty ? null : () => audio.playSongs(songs.cast()),
+                onPressed: songs.isEmpty
+                    ? null
+                    : () => audio.playSongs(songs.cast()),
                 icon: const Icon(Icons.play_arrow_rounded, color: Colors.black),
               ),
             ],
@@ -102,8 +118,10 @@ class _LibraryTabState extends State<LibraryTab> {
       ),
       SliverList.builder(
         itemCount: songs.length,
-        itemBuilder: (context, i) =>
-            SongTile(song: songs[i], onTap: () => audio.playSongs(songs.cast(), start: i)),
+        itemBuilder: (context, i) => SongTile(
+          song: songs[i],
+          onTap: () => audio.playSongs(songs.cast(), start: i),
+        ),
       ),
     ];
   }
@@ -112,7 +130,10 @@ class _LibraryTabState extends State<LibraryTab> {
     return [
       SliverToBoxAdapter(
         child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 4,
+          ),
           leading: Container(
             width: 48,
             height: 48,
@@ -122,9 +143,16 @@ class _LibraryTabState extends State<LibraryTab> {
             ),
             child: const Icon(Icons.add_rounded, color: Colors.black),
           ),
-          title: const Text('Nueva playlist', style: TextStyle(fontWeight: FontWeight.w600)),
+          title: const Text(
+            'Nueva playlist',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
           onTap: () async {
-            final name = await promptText(context, title: 'Nueva playlist', action: 'Crear');
+            final name = await promptText(
+              context,
+              title: 'Nueva playlist',
+              action: 'Crear',
+            );
             if (name != null) store.createPlaylist(name);
           },
         ),
@@ -134,20 +162,33 @@ class _LibraryTabState extends State<LibraryTab> {
         itemBuilder: (context, i) {
           final p = store.playlists[i];
           return ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 2,
+            ),
             leading: PlaylistCover(playlist: p),
             title: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: Text('${store.songsOf(p).length} canciones',
-                style: const TextStyle(color: kMuted)),
+            subtitle: Text(
+              '${store.songsOf(p).length} canciones',
+              style: const TextStyle(color: kMuted),
+            ),
             trailing: PopupMenuButton<String>(
               tooltip: 'Opciones',
               onSelected: (v) async {
                 if (v == 'rename') {
-                  final n = await promptText(context, title: 'Renombrar playlist', initial: p.name);
+                  final n = await promptText(
+                    context,
+                    title: 'Renombrar playlist',
+                    initial: p.name,
+                  );
                   if (n != null) store.renamePlaylist(p, n);
                 } else {
-                  final ok = await confirm(context, 'Borrar playlist',
-                      'Se borrará "${p.name}". Las canciones siguen en tu biblioteca.', 'Borrar');
+                  final ok = await confirm(
+                    context,
+                    'Borrar playlist',
+                    'Se borrará "${p.name}". Las canciones siguen en tu biblioteca.',
+                    'Borrar',
+                  );
                   if (ok) store.deletePlaylist(p);
                 }
               },
@@ -156,7 +197,8 @@ class _LibraryTabState extends State<LibraryTab> {
                 PopupMenuItem(value: 'delete', child: Text('Borrar')),
               ],
             ),
-            onTap: () => openList(context, p.name, () => store.songsOf(p), playlist: p),
+            onTap: () =>
+                openList(context, p.name, () => store.songsOf(p), playlist: p),
           );
         },
       ),

@@ -41,9 +41,41 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
   /// Cambia cada vez que cambia la cola, el aleatorio, la repetición o el volumen.
   final changes = ValueNotifier<int>(0);
 
+  // ---------- Temporizador de apagado ----------
+  Timer? _sleepTimer;
+  DateTime? sleepAt;
+  bool sleepEndOfSong = false;
+
+  /// [d] null cancela; `Duration.zero` = al terminar la canción.
+  void setSleep(Duration? d) {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    sleepAt = null;
+    sleepEndOfSong = false;
+    if (d == Duration.zero) {
+      sleepEndOfSong = true;
+    } else if (d != null) {
+      sleepAt = DateTime.now().add(d);
+      _sleepTimer = Timer(d, _sleepNow);
+    }
+    changes.value++;
+  }
+
+  Future<void> _sleepNow() async {
+    // Baja el volumen poco a poco antes de pausar.
+    for (var i = 10; i >= 0; i--) {
+      _p.setVolume(_volume * i / 10);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    }
+    await pause();
+    _p.setVolume(_volume);
+    setSleep(null);
+  }
+
   List<Song> get queueSongs => List.unmodifiable(_queue);
   int get index => _index;
-  Song? get current => _index >= 0 && _index < _queue.length ? _queue[_index] : null;
+  Song? get current =>
+      _index >= 0 && _index < _queue.length ? _queue[_index] : null;
   bool get shuffleOn => _shuffle;
   AudioServiceRepeatMode get repeatMode => _repeat;
   double get volume => _volume;
@@ -61,11 +93,14 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
 
   void _listen(int i) {
     final p = _players[i];
-    p.playbackEventStream.listen((_) {
-      if (i == _cur) _broadcast();
-    }, onError: (Object e, StackTrace st) {
-      debugPrint('Error de reproducción: $e');
-    });
+    p.playbackEventStream.listen(
+      (_) {
+        if (i == _cur) _broadcast();
+      },
+      onError: (Object e, StackTrace st) {
+        debugPrint('Error de reproducción: $e');
+      },
+    );
     p.playingStream.listen((_) {
       if (i == _cur) _broadcast();
     });
@@ -81,13 +116,13 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   MediaItem _item(Song s) => MediaItem(
-        id: s.id,
-        title: s.title,
-        artist: s.artist,
-        album: s.album,
-        duration: s.durationMs > 0 ? Duration(milliseconds: s.durationMs) : null,
-        artUri: s.cover != null ? Uri.file(store.resolve(s.cover!)) : null,
-      );
+    id: s.id,
+    title: s.title,
+    artist: s.artist,
+    album: s.album,
+    duration: s.durationMs > 0 ? Duration(milliseconds: s.durationMs) : null,
+    artUri: s.cover != null ? Uri.file(store.resolve(s.cover!)) : null,
+  );
 
   void _publishQueue() {
     queue.add(_queue.map(_item).toList());
@@ -106,7 +141,11 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
   // ---------- Reproducir ----------
 
   /// Reproduce una lista de canciones empezando por [start].
-  Future<void> playSongs(List<Song> songs, {int start = 0, bool shuffle = false}) async {
+  Future<void> playSongs(
+    List<Song> songs, {
+    int start = 0,
+    bool shuffle = false,
+  }) async {
     if (songs.isEmpty) return;
     _original = List.of(songs);
     _shuffle = shuffle;
@@ -193,7 +232,12 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
 
   void _checkCrossfade(Duration pos) {
     final secs = store.crossfade;
-    if (secs <= 0 || _fadeStarting || _crossfading || !_p.playing) return;
+    if (secs <= 0 ||
+        _fadeStarting ||
+        _crossfading ||
+        !_p.playing ||
+        sleepEndOfSong)
+      return;
     if (_repeat == AudioServiceRepeatMode.one) return;
     final d = _p.duration;
     if (d == null || d.inSeconds < secs * 2 + 2) return;
@@ -213,6 +257,12 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
 
   void _onCompleted() {
     if (_crossfading || _fadeStarting) return;
+    if (sleepEndOfSong) {
+      setSleep(null);
+      _p.pause();
+      _p.seek(Duration.zero);
+      return;
+    }
     if (_repeat == AudioServiceRepeatMode.one) {
       _p.seek(Duration.zero);
       _p.play();
@@ -229,33 +279,37 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
 
   void _broadcast() {
     final p = _p;
-    playbackState.add(PlaybackState(
-      controls: [
-        MediaControl.skipToPrevious,
-        if (p.playing) MediaControl.pause else MediaControl.play,
-        MediaControl.skipToNext,
-      ],
-      systemActions: const {
-        MediaAction.seek,
-        MediaAction.seekForward,
-        MediaAction.seekBackward,
-      },
-      androidCompactActionIndices: const [0, 1, 2],
-      processingState: const {
-        ProcessingState.idle: AudioProcessingState.idle,
-        ProcessingState.loading: AudioProcessingState.loading,
-        ProcessingState.buffering: AudioProcessingState.buffering,
-        ProcessingState.ready: AudioProcessingState.ready,
-        ProcessingState.completed: AudioProcessingState.completed,
-      }[p.processingState]!,
-      playing: p.playing,
-      updatePosition: p.position,
-      bufferedPosition: p.bufferedPosition,
-      speed: p.speed,
-      queueIndex: _index < 0 ? null : _index,
-      repeatMode: _repeat,
-      shuffleMode: _shuffle ? AudioServiceShuffleMode.all : AudioServiceShuffleMode.none,
-    ));
+    playbackState.add(
+      PlaybackState(
+        controls: [
+          MediaControl.skipToPrevious,
+          if (p.playing) MediaControl.pause else MediaControl.play,
+          MediaControl.skipToNext,
+        ],
+        systemActions: const {
+          MediaAction.seek,
+          MediaAction.seekForward,
+          MediaAction.seekBackward,
+        },
+        androidCompactActionIndices: const [0, 1, 2],
+        processingState: const {
+          ProcessingState.idle: AudioProcessingState.idle,
+          ProcessingState.loading: AudioProcessingState.loading,
+          ProcessingState.buffering: AudioProcessingState.buffering,
+          ProcessingState.ready: AudioProcessingState.ready,
+          ProcessingState.completed: AudioProcessingState.completed,
+        }[p.processingState]!,
+        playing: p.playing,
+        updatePosition: p.position,
+        bufferedPosition: p.bufferedPosition,
+        speed: p.speed,
+        queueIndex: _index < 0 ? null : _index,
+        repeatMode: _repeat,
+        shuffleMode: _shuffle
+            ? AudioServiceShuffleMode.all
+            : AudioServiceShuffleMode.none,
+      ),
+    );
   }
 
   // ---------- Controles (app, notificación y pantalla de bloqueo) ----------
@@ -301,7 +355,8 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> skipToPrevious() async {
     if (_queue.isEmpty) return;
-    if (_p.position > const Duration(seconds: 3) || (_index == 0 && _repeat != AudioServiceRepeatMode.all)) {
+    if (_p.position > const Duration(seconds: 3) ||
+        (_index == 0 && _repeat != AudioServiceRepeatMode.all)) {
       await seek(Duration.zero);
       return;
     }
@@ -396,6 +451,13 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
     for (var i = _queue.length - 1; i >= 0; i--) {
       if (_queue[i].id == id) removeFromQueue(i);
     }
+  }
+
+  /// Vuelve a publicar la canción actual (por ejemplo, después de cambiar su imagen).
+  void refreshCurrent() {
+    final s = current;
+    if (s != null) mediaItem.add(_item(s));
+    _publishQueue();
   }
 
   void setVolume(double v) {

@@ -42,11 +42,13 @@ class _SearchTabState extends State<SearchTab> {
           final results = q.isEmpty
               ? <dynamic>[]
               : store.allSongs
-                  .where((s) =>
-                      _norm(s.title).contains(q) ||
-                      _norm(s.artist).contains(q) ||
-                      _norm(s.album).contains(q))
-                  .toList();
+                    .where(
+                      (s) =>
+                          _norm(s.title).contains(q) ||
+                          _norm(s.artist).contains(q) ||
+                          _norm(s.album).contains(q),
+                    )
+                    .toList();
           return CustomScrollView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             slivers: [
@@ -56,8 +58,13 @@ class _SearchTabState extends State<SearchTab> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Buscar',
-                          style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
+                      const Text(
+                        'Buscar',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                       const SizedBox(height: 14),
                       TextField(
                         controller: _ctrl,
@@ -92,8 +99,11 @@ class _SearchTabState extends State<SearchTab> {
                 const SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.all(32),
-                    child: Text('Sin resultados',
-                        textAlign: TextAlign.center, style: TextStyle(color: kMuted)),
+                    child: Text(
+                      'Sin resultados',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: kMuted),
+                    ),
                   ),
                 ),
               SliverList.builder(
@@ -103,7 +113,9 @@ class _SearchTabState extends State<SearchTab> {
                   onTap: () => audio.playSongs(results.cast(), start: i),
                 ),
               ),
-              const SliverToBoxAdapter(child: SizedBox(height: kTabBottomSpace)),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: kTabBottomSpace),
+              ),
             ],
           );
         },

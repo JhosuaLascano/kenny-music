@@ -63,9 +63,11 @@ ThemeData buildTheme(Color accent) {
     ),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected) ? Colors.black : kMuted),
+        (s) => s.contains(WidgetState.selected) ? Colors.black : kMuted,
+      ),
       trackColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected) ? accent : kSurface2),
+        (s) => s.contains(WidgetState.selected) ? accent : kSurface2,
+      ),
     ),
   );
 }

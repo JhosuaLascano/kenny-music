@@ -12,14 +12,23 @@ Future<Color> coverColor(String? file, Color fallback) async {
   if (hit != null) return hit;
   try {
     final bytes = await File(file).readAsBytes();
-    final codec = await ui.instantiateImageCodec(bytes, targetWidth: 24, targetHeight: 24);
+    final codec = await ui.instantiateImageCodec(
+      bytes,
+      targetWidth: 24,
+      targetHeight: 24,
+    );
     final img = (await codec.getNextFrame()).image;
     final data = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
     img.dispose();
     if (data == null) return fallback;
     double r = 0, g = 0, b = 0, w = 0;
     for (var i = 0; i < data.lengthInBytes; i += 4) {
-      final c = Color.fromARGB(255, data.getUint8(i), data.getUint8(i + 1), data.getUint8(i + 2));
+      final c = Color.fromARGB(
+        255,
+        data.getUint8(i),
+        data.getUint8(i + 1),
+        data.getUint8(i + 2),
+      );
       final hsv = HSVColor.fromColor(c);
       // Pesan más los píxeles con color (no grises ni negros).
       final weight = 0.05 + hsv.saturation * hsv.value;
@@ -32,7 +41,11 @@ Future<Color> coverColor(String? file, Color fallback) async {
     final hsl = HSLColor.fromColor(avg);
     final tuned = hsl
         .withLightness(hsl.lightness.clamp(0.22, 0.42))
-        .withSaturation(hsl.saturation < 0.08 ? hsl.saturation : hsl.saturation.clamp(0.35, 0.85))
+        .withSaturation(
+          hsl.saturation < 0.08
+              ? hsl.saturation
+              : hsl.saturation.clamp(0.35, 0.85),
+        )
         .toColor();
     _cache[file] = tuned;
     return tuned;
