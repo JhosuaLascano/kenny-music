@@ -26,11 +26,14 @@ jobs:
       - name: Compilar (sin firmar)
         run: flutter build ios --release --no-codesign
 
-      - name: Firmar ad-hoc (AltStore vuelve a firmar con tu Apple ID)
+      - name: Firmar ad-hoc con App Group (AltStore vuelve a firmar con tu Apple ID)
         run: |
           APP=build/ios/iphoneos/Runner.app
           for f in "$APP"/Frameworks/*; do codesign -f -s - "$f"; done
-          codesign -f -s - "$APP"
+          codesign -f -s - --entitlements ios/KennyWidget/KennyWidget.entitlements "$APP/PlugIns/KennyWidgetExtension.appex"
+          codesign -f -s - --entitlements ios/Runner/Runner.entitlements "$APP"
+          codesign -d --entitlements - "$APP"
+          ls "$APP/PlugIns"
 
       - name: Empaquetar KennyMusic.ipa
         run: |

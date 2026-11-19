@@ -6,6 +6,7 @@ import 'app_state.dart';
 import 'audio_handler.dart';
 import 'screens/home_shell.dart';
 import 'theme.dart';
+import 'widget_sync.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +21,7 @@ Future<void> main() async {
     ),
   );
   nowLyrics.follow(audio.mediaItem);
+  WidgetSync.start(); // widget de iPhone
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,

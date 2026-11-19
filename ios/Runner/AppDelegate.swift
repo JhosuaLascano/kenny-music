@@ -12,5 +12,9 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    // Conecta la app con el widget de la pantalla de inicio.
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "WidgetBridge") {
+      WidgetBridge.register(with: registrar)
+    }
   }
 }

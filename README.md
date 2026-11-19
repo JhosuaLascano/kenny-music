@@ -19,6 +19,7 @@ Reproductor de música para **Android** y **iPhone**, hecho con Flutter. Escucha
 - **Crossfade.** Al terminar una canción, la siguiente empieza mientras la anterior baja de volumen. Se ajusta de 0 a 12 segundos.
 - **Apariencia.** Para el fondo del reproductor puedes elegir entre *portada difuminada*, *degradado* con el color de la portada o *color sólido*. El color de acento también se cambia (naranja Kenny, violeta, oro, menta, azul o rosa).
 - También tiene aleatorio, repetir (todo o una canción), cola de reproducción, búsqueda y vista por artistas y álbumes.
+- **Widget de iPhone.** En la pantalla de inicio muestra la canción que suena (portada, título y artista) con el fondo del color de la portada. Los botones anterior, reproducir y siguiente funcionan en iOS 17 o más nuevo. Para agregarlo, mantén presionada la pantalla de inicio, toca **+** y busca **Kenny Music**.
 
 ## Instalar
 
