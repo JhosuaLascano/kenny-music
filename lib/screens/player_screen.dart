@@ -43,6 +43,36 @@ class PlayerBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = this.style ?? store.bgStyle;
     final coverFile = song?.cover == null ? null : store.resolve(song!.cover!);
+    if (style == 'tint') {
+      // Cola: degradado con el color de la canción que suena (sin la imagen
+      // de la portada, para que la lista se lea bien). Siempre con color,
+      // aunque la portada sea oscura.
+      return FutureBuilder<Color>(
+        future: coverColor(coverFile, const Color(0xFF4A5A6A)),
+        initialData: cachedCoverColor(coverFile),
+        builder: (context, snap) {
+          final b = HSLColor.fromColor(snap.data ?? const Color(0xFF4A5A6A));
+          final sat = b.saturation < 0.1
+              ? b.saturation
+              : b.saturation.clamp(0.4, 0.75);
+          final top = b.withSaturation(sat).withLightness(0.38).toColor();
+          final mid = b.withSaturation(sat * 0.9).withLightness(0.26).toColor();
+          final bottom = b
+              .withSaturation(sat * 0.8)
+              .withLightness(0.15)
+              .toColor();
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [top, mid, bottom],
+              ),
+            ),
+          );
+        },
+      );
+    }
     if (style == 'solid' || song == null) {
       return ColoredBox(color: home ? kBg : const Color(0xFF1A1A1F));
     }
@@ -159,17 +189,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 ListenableBuilder(
                   listenable: store,
                   builder: (_, _) => AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 700),
+                    duration: const Duration(milliseconds: 450),
+                    // Con la cola abierta: un solo color liso (sin portada)
+                    // para que la lista se lea bien.
                     child: PlayerBackground(
                       key: ValueKey(
-                        '${song?.id}-${song?.cover}-${store.bgStyle}',
+                        '${song?.id}-${song?.cover}-${store.bgStyle}-$_queueMode',
                       ),
                       song: song,
+                      style: _queueMode ? 'tint' : null,
                     ),
                   ),
                 ),
-                if (store.playerLayout == 'full' ||
-                    store.playerLayout == 'poster')
+                if (!_queueMode &&
+                    (store.playerLayout == 'full' ||
+                        store.playerLayout == 'poster'))
                   FullCoverLayer(
                     song: song,
                     poster: store.playerLayout == 'poster',
@@ -205,13 +239,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return parts.isEmpty ? ext : '$ext · ${parts.join('/')}';
   }
 
+  /// true = la cola está abierta dentro del reproductor (la portada sube).
+  bool _queueMode = false;
+
   Widget _content(BuildContext context, Song song) {
-    final accent = accentOf(context);
-    final hq =
-        (song.bitrate ?? 0) >= 256 ||
-        ['flac', 'wav'].contains(song.path.split('.').last.toLowerCase());
     return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 0, 28, 12),
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
       child: Column(
         children: [
           // Barra de arriba: cerrar y menú
@@ -233,264 +266,308 @@ class _PlayerScreenState extends State<PlayerScreen> {
               ),
             ],
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                _format(song),
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.white60,
-                  letterSpacing: 0.2,
+          // Parte de arriba: portada grande o cola (con transición).
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 420),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, a) => FadeTransition(
+                opacity: a,
+                child: ScaleTransition(
+                  alignment: Alignment.topLeft,
+                  scale: Tween(begin: 0.94, end: 1.0).animate(a),
+                  child: child,
                 ),
               ),
-              if (hq) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 5,
-                    vertical: 1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: accent,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    'HQ',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const Spacer(flex: 3),
-          // Portada (cambia según el estilo del reproductor)
-          _Artwork(song: song),
-          const Spacer(flex: 4),
-          // Título, estrella y letra
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Marquee(
-                      song.title,
-                      // Estilo "Mínimo": título enorme.
-                      style: TextStyle(
-                        fontSize: store.playerLayout == 'minimal' ? 34 : 22,
-                        fontWeight: store.playerLayout == 'minimal'
-                            ? FontWeight.w800
-                            : FontWeight.w500,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Marquee(
-                      song.album == 'Sin álbum'
-                          ? song.artist
-                          : '${song.artist} - ${song.album}',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        color: Colors.white60,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              ListenableBuilder(
-                listenable: store,
-                builder: (context, _) {
-                  final fav = store.isFavorite(song.id);
-                  return IconButton(
-                    tooltip: fav
-                        ? 'Quitar de favoritas'
-                        : 'Agregar a favoritas',
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                      store.toggleFavorite(song.id);
-                    },
-                    icon: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 260),
-                      transitionBuilder: (c, a) => ScaleTransition(
-                        scale: CurvedAnimation(
-                          parent: a,
-                          curve: Curves.easeOutBack,
-                        ),
-                        child: c,
-                      ),
-                      child: Icon(
-                        fav ? CupertinoIcons.star_fill : CupertinoIcons.star,
-                        key: ValueKey(fav),
-                        size: 24,
-                        color: fav ? accent : Colors.white,
-                      ),
-                    ),
-                  );
-                },
-              ),
-              IconButton(
-                tooltip: 'Letra',
-                onPressed: () => _openLyrics(context),
-                icon: const Icon(CupertinoIcons.quote_bubble, size: 24),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          _LyricPreview(onTap: () => _openLyrics(context)),
-          const Spacer(flex: 2),
-          // Barra de progreso
-          _SeekBar(song: song),
-          const Spacer(flex: 2),
-          // Controles
-          ValueListenableBuilder(
-            valueListenable: audio.changes,
-            builder: (context, _, _) => StreamBuilder<PlaybackState>(
-              stream: audio.playbackState,
-              builder: (context, s) {
-                final playing = s.data?.playing ?? false;
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _Press(
-                      tooltip: audio.shuffleOn
-                          ? 'Aleatorio: activado'
-                          : 'Aleatorio: desactivado',
-                      onTap: audio.toggleShuffle,
-                      child: Icon(
-                        CupertinoIcons.shuffle,
-                        size: 26,
-                        color: audio.shuffleOn ? accent : Colors.white70,
-                      ),
-                    ),
-                    _Press(
-                      tooltip: 'Anterior',
-                      onTap: audio.skipToPrevious,
-                      child: const Icon(CupertinoIcons.backward_fill, size: 38),
-                    ),
-                    _Press(
-                      tooltip: playing ? 'Pausar' : 'Reproducir',
-                      onTap: audio.togglePlay,
-                      width: 96,
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 150),
-                        transitionBuilder: (c, a) => FadeTransition(
-                          opacity: a,
-                          child: ScaleTransition(scale: a, child: c),
-                        ),
-                        child: playing
-                            ? const Icon(
-                                CupertinoIcons.pause_fill,
-                                key: ValueKey(true),
-                                size: 54,
-                              )
-                            : const Padding(
-                                key: ValueKey(false),
-                                // el triángulo se ve corrido a la izquierda: se compensa un poco
-                                padding: EdgeInsets.only(left: 5),
-                                child: Icon(CupertinoIcons.play_fill, size: 54),
-                              ),
-                      ),
-                    ),
-                    _Press(
-                      tooltip: 'Siguiente',
-                      onTap: audio.skipToNext,
-                      child: const Icon(CupertinoIcons.forward_fill, size: 38),
-                    ),
-                    _Press(
-                      tooltip: 'Cola de reproducción',
-                      onTap: () => _showQueue(context),
-                      child: const Icon(
-                        CupertinoIcons.music_note_list,
-                        size: 26,
-                        color: Colors.white70,
-                      ),
-                    ),
-                  ],
-                );
-              },
+              child: _queueMode
+                  ? _QueuePanel(key: const ValueKey('cola'), song: song)
+                  : _nowPanel(context, song),
             ),
           ),
-          const Spacer(flex: 2),
-          // Pastilla de estado: repetir · crossfade · temporizador
-          ValueListenableBuilder(
-            valueListenable: audio.changes,
-            builder: (context, _, _) {
-              final rep = switch (audio.repeatMode) {
-                AudioServiceRepeatMode.all => 'Repetir todo',
-                AudioServiceRepeatMode.one => 'Repetir una',
-                _ => 'Sin repetir',
-              };
-              final parts = [
-                rep,
-                store.crossfade == 0
-                    ? 'Sin crossfade'
-                    : 'Crossfade ${store.crossfade} s',
-                if (audio.sleepEndOfSong) 'Apagar al terminar',
-                if (audio.sleepAt != null)
-                  'Apagar ${TimeOfDay.fromDateTime(audio.sleepAt!).format(context)}',
-              ];
-              return Semantics(
-                button: true,
-                label: 'Cambiar repetición. $rep',
-                child: GestureDetector(
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    audio.cycleRepeat();
-                  },
-                  child: DecoratedBox(
-                    // Casi transparente, solo un borde suave.
-                    decoration: BoxDecoration(
-                      color: const Color(0x12FFFFFF),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: const Color(0x1AFFFFFF)),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 9,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            audio.repeatMode == AudioServiceRepeatMode.one
-                                ? Icons.repeat_one_rounded
-                                : Icons.repeat_rounded,
-                            size: 14,
-                            color:
-                                audio.repeatMode == AudioServiceRepeatMode.none
-                                ? Colors.white70
-                                : accent,
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              parts.join(' · '),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+          const SizedBox(height: 10),
+          _SeekBar(song: song),
+          const SizedBox(height: 6),
+          _controls(),
+          if (_queueMode) _volume(),
+          const SizedBox(height: 12),
+          _bottomRow(context),
+        ],
+      ),
+    );
+  }
+
+  /// Portada grande, título, estrella y línea de la letra.
+  Widget _nowPanel(BuildContext context, Song song) {
+    final accent = accentOf(context);
+    final hq =
+        (song.bitrate ?? 0) >= 256 ||
+        ['flac', 'wav'].contains(song.path.split('.').last.toLowerCase());
+    return Column(
+      key: const ValueKey('ahora'),
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              _format(song),
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.white60,
+                letterSpacing: 0.2,
+              ),
+            ),
+            if (hq) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'HQ',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black,
                   ),
                 ),
-              );
-            },
+              ),
+            ],
+          ],
+        ),
+        const Spacer(flex: 3),
+        // Portada (cambia según el estilo del reproductor)
+        _Artwork(song: song),
+        const Spacer(flex: 4),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Marquee(
+                    song.title,
+                    // Estilo "Mínimo": título enorme.
+                    style: TextStyle(
+                      fontSize: store.playerLayout == 'minimal' ? 34 : 22,
+                      fontWeight: store.playerLayout == 'minimal'
+                          ? FontWeight.w800
+                          : FontWeight.w500,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Marquee(
+                    song.album == 'Sin álbum'
+                        ? song.artist
+                        : '${song.artist} - ${song.album}',
+                    style: const TextStyle(fontSize: 15, color: Colors.white60),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            _FavButton(song: song),
+            IconButton(
+              tooltip: 'Letra',
+              onPressed: () => _openLyrics(context),
+              icon: const Icon(CupertinoIcons.quote_bubble, size: 24),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _LyricPreview(onTap: () => _openLyrics(context)),
+        const Spacer(flex: 1),
+      ],
+    );
+  }
+
+  /// Anterior, reproducir/pausa y siguiente.
+  Widget _controls() {
+    return StreamBuilder<PlaybackState>(
+      stream: audio.playbackState,
+      builder: (context, s) {
+        final playing = s.data?.playing ?? false;
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _Press(
+              tooltip: 'Anterior',
+              onTap: audio.skipToPrevious,
+              width: 72,
+              child: const Icon(CupertinoIcons.backward_fill, size: 38),
+            ),
+            _Press(
+              tooltip: playing ? 'Pausar' : 'Reproducir',
+              onTap: audio.togglePlay,
+              width: 96,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 150),
+                transitionBuilder: (c, a) => FadeTransition(
+                  opacity: a,
+                  child: ScaleTransition(scale: a, child: c),
+                ),
+                child: playing
+                    ? const Icon(
+                        CupertinoIcons.pause_fill,
+                        key: ValueKey(true),
+                        size: 54,
+                      )
+                    : const Padding(
+                        key: ValueKey(false),
+                        // el triángulo se ve corrido a la izquierda: se compensa
+                        padding: EdgeInsets.only(left: 5),
+                        child: Icon(CupertinoIcons.play_fill, size: 54),
+                      ),
+              ),
+            ),
+            _Press(
+              tooltip: 'Siguiente',
+              onTap: audio.skipToNext,
+              width: 72,
+              child: const Icon(CupertinoIcons.forward_fill, size: 38),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Volumen (se muestra con la cola abierta).
+  Widget _volume() {
+    return ValueListenableBuilder(
+      valueListenable: audio.changes,
+      builder: (context, _, _) => Row(
+        children: [
+          const Icon(
+            CupertinoIcons.speaker_fill,
+            size: 16,
+            color: Colors.white70,
+          ),
+          Expanded(
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: Colors.white,
+                inactiveTrackColor: Colors.white24,
+                thumbColor: Colors.white,
+                trackHeight: 4,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 0),
+              ),
+              child: Slider(value: audio.volume, onChanged: audio.setVolume),
+            ),
+          ),
+          const Icon(
+            CupertinoIcons.speaker_3_fill,
+            size: 18,
+            color: Colors.white70,
           ),
         ],
       ),
+    );
+  }
+
+  /// Letra · [aleatorio | repetir | continuo] · cola.
+  Widget _bottomRow(BuildContext context) {
+    return ListenableBuilder(
+      listenable: Listenable.merge([audio.changes, store]),
+      builder: (context, _) {
+        final rep = audio.repeatMode;
+        Widget seg(IconData icon, bool on, String tip, VoidCallback onTap) =>
+            Semantics(
+              button: true,
+              selected: on,
+              label: tip,
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onTap();
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: 58,
+                  height: 42,
+                  color: on ? const Color(0x38FFFFFF) : Colors.transparent,
+                  child: Icon(icon, size: 21, color: Colors.white),
+                ),
+              ),
+            );
+        return Row(
+          children: [
+            IconButton(
+              tooltip: 'Letra',
+              onPressed: () => _openLyrics(context),
+              icon: const Icon(CupertinoIcons.quote_bubble, size: 24),
+            ),
+            const Spacer(),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(21),
+              child: ColoredBox(
+                color: const Color(0x24FFFFFF),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    seg(
+                      CupertinoIcons.shuffle,
+                      audio.shuffleOn,
+                      'Aleatorio',
+                      audio.toggleShuffle,
+                    ),
+                    seg(
+                      rep == AudioServiceRepeatMode.one
+                          ? CupertinoIcons.repeat_1
+                          : CupertinoIcons.repeat,
+                      rep != AudioServiceRepeatMode.none,
+                      switch (rep) {
+                        AudioServiceRepeatMode.all => 'Repetir todo',
+                        AudioServiceRepeatMode.one => 'Repetir una',
+                        _ => 'Sin repetir',
+                      },
+                      audio.cycleRepeat,
+                    ),
+                    seg(
+                      Icons.all_inclusive_rounded,
+                      store.autoplay,
+                      'Reproducción continua',
+                      () => store.setAutoplay(!store.autoplay),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Spacer(),
+            Semantics(
+              button: true,
+              selected: _queueMode,
+              label: 'Cola de reproducción',
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  setState(() => _queueMode = !_queueMode);
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 46,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: _queueMode
+                        ? const Color(0xD9FFFFFF)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    CupertinoIcons.list_bullet,
+                    size: 22,
+                    color: _queueMode ? const Color(0xFF1A1A1A) : Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -534,6 +611,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         'Editar imagen de la canción',
         () => _editImage(song),
       ),
+      (Icons.speed_rounded, 'Velocidad', () => _speedSheet(context)),
       (
         Icons.palette_outlined,
         'Seleccionar tema del reproductor',
@@ -545,7 +623,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       barrierDismissible: true,
       barrierLabel: 'Cerrar menú',
       barrierColor: Colors.black26,
-      transitionDuration: const Duration(milliseconds: 420),
+      transitionDuration: const Duration(milliseconds: 180),
       pageBuilder: (c, _, _) => SafeArea(
         child: Align(
           alignment: Alignment.topRight,
@@ -606,10 +684,57 @@ class _PlayerScreenState extends State<PlayerScreen> {
           alignment: Alignment.topRight,
           scale: CurvedAnimation(
             parent: a,
-            curve: const SpringCurve(0.42),
+            curve: Curves.easeOutCubic,
             reverseCurve: Curves.easeIn,
           ),
           child: child,
+        ),
+      ),
+    );
+  }
+
+  /// Velocidad de reproducción (0,75× a 2×).
+  void _speedSheet(BuildContext context) {
+    const speeds = [0.75, 1.0, 1.25, 1.5, 2.0];
+    showModalBottomSheet(
+      context: context,
+      builder: (c) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Velocidad',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 14),
+              ValueListenableBuilder(
+                valueListenable: audio.changes,
+                builder: (context, _, _) => Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final s in speeds)
+                      ChoiceChip(
+                        label: Text(
+                          '${s.toString().replaceAll('.0', '').replaceAll('.', ',')}×',
+                        ),
+                        selected: (audio.speed - s).abs() < 0.01,
+                        showCheckmark: false,
+                        onSelected: (_) => audio.setSpeed(s),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Útil para podcasts o para practicar una canción más lento.',
+                style: TextStyle(color: kMuted, fontSize: 12),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -722,118 +847,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
               ThemePicker(),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  void _showQueue(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (c) => SizedBox(
-        height: MediaQuery.sizeOf(context).height * 0.7,
-        child: ValueListenableBuilder(
-          valueListenable: audio.changes,
-          builder: (context, _, _) {
-            final q = audio.queueSongs;
-            final cur = audio.index;
-            return Column(
-              children: [
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Cola de reproducción',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Arrastra desde ≡ para cambiar el orden de las canciones.',
-                      style: TextStyle(color: kMuted, fontSize: 12),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  // Se puede arrastrar cada canción para cambiar el orden.
-                  child: ReorderableListView.builder(
-                    itemCount: q.length,
-                    buildDefaultDragHandles: false,
-                    onReorderItem: audio.moveQueueItem,
-                    itemBuilder: (context, i) {
-                      final s = q[i];
-                      final isCur = i == cur;
-                      return ListTile(
-                        key: ValueKey('q-$i-${s.id}'),
-                        contentPadding: const EdgeInsets.only(
-                          left: 4,
-                          right: 12,
-                        ),
-                        leading: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            ReorderableDragStartListener(
-                              index: i,
-                              child: const Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 12,
-                                ),
-                                child: Icon(
-                                  Icons.drag_handle_rounded,
-                                  color: kMuted,
-                                ),
-                              ),
-                            ),
-                            CoverArt(song: s, size: 44),
-                          ],
-                        ),
-                        title: Text(
-                          s.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: isCur ? accentOf(context) : kText,
-                            fontWeight: isCur
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                          ),
-                        ),
-                        subtitle: Text(
-                          s.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: isCur
-                            ? Icon(
-                                Icons.graphic_eq_rounded,
-                                color: accentOf(context),
-                              )
-                            : IconButton(
-                                tooltip: 'Quitar de la cola',
-                                onPressed: () => audio.removeFromQueue(i),
-                                icon: const Icon(
-                                  Icons.close_rounded,
-                                  color: kMuted,
-                                ),
-                              ),
-                        onTap: () => audio.skipToQueueItem(i),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            );
-          },
         ),
       ),
     );
@@ -1043,14 +1056,23 @@ class _Artwork extends StatelessWidget {
                     ),
                   ],
                 ),
-                // Transición de cine al cambiar de canción.
-                child: cinematicSwitch(
-                  currentKey: ValueKey('${song.id}-${song.cover}'),
-                  child: CoverArt(
-                    key: ValueKey('${song.id}-${song.cover}'),
-                    song: song,
-                    size: size,
-                    radius: 14,
+                // Vuela desde/hacia el mini-reproductor al abrir y cerrar, y
+                // hace la transición de cine al cambiar de canción.
+                // Doble toque en la portada = favorita (con estrella animada).
+                child: _DoubleTapFav(
+                  song: song,
+                  child: Hero(
+                    tag: kNowCoverTag,
+                    transitionOnUserGestures: true,
+                    child: cinematicSwitch(
+                      currentKey: ValueKey('${song.id}-${song.cover}'),
+                      child: CoverArt(
+                        key: ValueKey('${song.id}-${song.cover}'),
+                        song: song,
+                        size: size,
+                        radius: 14,
+                      ),
+                    ),
                   ),
                 ),
               );
@@ -1550,6 +1572,334 @@ class _InlineLyrics extends StatelessWidget {
                       ),
                     );
                   },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Estrella de favorita con un pequeño rebote al tocarla.
+class _FavButton extends StatelessWidget {
+  const _FavButton({required this.song, this.circle = false});
+  final Song song;
+  final bool circle;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = accentOf(context);
+    return ListenableBuilder(
+      listenable: store,
+      builder: (context, _) {
+        final fav = store.isFavorite(song.id);
+        return IconButton(
+          tooltip: fav ? 'Quitar de favoritas' : 'Agregar a favoritas',
+          style: circle
+              ? IconButton.styleFrom(backgroundColor: const Color(0x2EFFFFFF))
+              : null,
+          onPressed: () {
+            HapticFeedback.lightImpact();
+            store.toggleFavorite(song.id);
+          },
+          icon: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 260),
+            transitionBuilder: (c, a) => ScaleTransition(
+              scale: CurvedAnimation(parent: a, curve: Curves.easeOutBack),
+              child: c,
+            ),
+            child: Icon(
+              fav ? CupertinoIcons.star_fill : CupertinoIcons.star,
+              key: ValueKey(fav),
+              size: circle ? 20 : 24,
+              color: fav ? accent : Colors.white,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// La cola dentro del reproductor: la portada sube pequeña con el título,
+/// debajo "Reproduciendo" y "A continuación de: ..." (se puede reordenar).
+class _QueuePanel extends StatelessWidget {
+  const _QueuePanel({super.key, required this.song});
+  final Song song;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: audio.changes,
+      builder: (context, _, _) {
+        final q = audio.queueSongs;
+        final cur = audio.index;
+        final upcoming = cur + 1 < q.length
+            ? q.sublist(cur + 1)
+            : const <Song>[];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CoverArt(song: song, size: 64, radius: 8),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Marquee(
+                        song.title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        song.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _FavButton(song: song, circle: true),
+              ],
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Cola',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Reproduciendo',
+              style: TextStyle(fontSize: 15, color: Colors.white70),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                CoverArt(song: song, size: 46, radius: 6),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        song.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.white60,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.graphic_eq_rounded, color: Colors.white),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'A continuación de: ${audio.queueFrom}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 15, color: Colors.white70),
+            ),
+            const SizedBox(height: 4),
+            Expanded(
+              child: upcoming.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.only(top: 12),
+                      child: Text(
+                        'No hay más canciones en la cola.',
+                        style: TextStyle(color: Colors.white60),
+                      ),
+                    )
+                  : ShaderMask(
+                      // La lista se desvanece al final, sin cortes bruscos.
+                      shaderCallback: (r) => const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.white,
+                          Colors.white,
+                          Colors.transparent,
+                        ],
+                        stops: [0, 0.88, 1],
+                      ).createShader(r),
+                      blendMode: BlendMode.dstIn,
+                      child: ReorderableListView.builder(
+                        padding: EdgeInsets.zero,
+                        itemCount: upcoming.length,
+                        buildDefaultDragHandles: false,
+                        onReorderItem: (a, b) =>
+                            audio.moveQueueItem(cur + 1 + a, cur + 1 + b),
+                        itemBuilder: (context, i) {
+                          final s = upcoming[i];
+                          return Material(
+                            key: ValueKey('up-${cur + 1 + i}-${s.id}'),
+                            type: MaterialType.transparency,
+                            child: InkWell(
+                              onTap: () => audio.skipToQueueItem(cur + 1 + i),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 6,
+                                ),
+                                child: Row(
+                                  children: [
+                                    ReorderableDragStartListener(
+                                      index: i,
+                                      child: const Padding(
+                                        padding: EdgeInsets.only(
+                                          right: 10,
+                                          top: 10,
+                                          bottom: 10,
+                                        ),
+                                        child: Icon(
+                                          Icons.drag_handle_rounded,
+                                          color: Colors.white60,
+                                        ),
+                                      ),
+                                    ),
+                                    CoverArt(song: s, size: 46, radius: 6),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            s.title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          Text(
+                                            s.artist,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.white60,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Quitar de la cola',
+                                      onPressed: () =>
+                                          audio.removeFromQueue(cur + 1 + i),
+                                      icon: const Icon(
+                                        CupertinoIcons.xmark,
+                                        size: 18,
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Doble toque sobre la portada: marca o quita la favorita y muestra una
+/// estrella que crece y se desvanece en el centro.
+class _DoubleTapFav extends StatefulWidget {
+  const _DoubleTapFav({required this.song, required this.child});
+  final Song song;
+  final Widget child;
+
+  @override
+  State<_DoubleTapFav> createState() => _DoubleTapFavState();
+}
+
+class _DoubleTapFavState extends State<_DoubleTapFav>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 650),
+  );
+  bool _nowFav = true;
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  void _toggle() {
+    HapticFeedback.mediumImpact();
+    store.toggleFavorite(widget.song.id);
+    setState(() => _nowFav = store.isFavorite(widget.song.id));
+    _c.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = accentOf(context);
+    return GestureDetector(
+      onDoubleTap: _toggle,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          widget.child,
+          IgnorePointer(
+            child: AnimatedBuilder(
+              animation: _c,
+              builder: (context, _) {
+                if (_c.value == 0 || _c.value == 1)
+                  return const SizedBox.shrink();
+                final t = _c.value;
+                final scale = Curves.easeOutBack.transform(
+                  (t * 1.6).clamp(0.0, 1.0),
+                );
+                final opacity = t < 0.6 ? 1.0 : (1 - (t - 0.6) / 0.4);
+                return Opacity(
+                  opacity: opacity.clamp(0.0, 1.0),
+                  child: Transform.scale(
+                    scale: 0.4 + scale * 0.8,
+                    child: Icon(
+                      _nowFav
+                          ? CupertinoIcons.star_fill
+                          : CupertinoIcons.star_slash,
+                      size: 110,
+                      color: _nowFav ? accent : Colors.white,
+                      shadows: const [
+                        Shadow(color: Color(0x80000000), blurRadius: 24),
+                      ],
+                    ),
+                  ),
                 );
               },
             ),

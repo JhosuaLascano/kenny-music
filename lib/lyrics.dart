@@ -228,6 +228,119 @@ class LyricsService {
   }
 }
 
+/// Traduce letras del inglés al español con el servicio gratuito MyMemory
+/// (sin cuenta). La traducción se guarda en el celular: cada canción se
+/// traduce una sola vez. El servicio gratuito tiene un límite diario.
+class LyricsTranslator {
+  static const _common = {
+    'the',
+    'you',
+    'and',
+    'i',
+    'me',
+    'my',
+    'your',
+    'is',
+    'it',
+    'to',
+    'in',
+    'on',
+    "don't",
+    "i'm",
+    'that',
+    'what',
+    'with',
+    'all',
+    'so',
+    'be',
+    'can',
+    'oh',
+    'we',
+    'love',
+    'know',
+    'just',
+    'like',
+    'when',
+    'never',
+    'feel',
+  };
+
+  /// ¿La letra parece estar en inglés?
+  static bool looksEnglish(Lyrics l) {
+    final words = l.lines
+        .expand((x) => x.text.toLowerCase().split(RegExp(r"[^a-z']+")))
+        .where((w) => w.isNotEmpty)
+        .toList();
+    if (words.length < 15) return false;
+    final hits = words.where(_common.contains).length;
+    return hits / words.length > 0.12;
+  }
+
+  static File _file(String id) => File('${store.baseDir}/lyrics/$id.es.json');
+
+  /// Traducción guardada (si ya existe).
+  static Future<List<String>?> cached(String songId) async {
+    try {
+      final f = _file(songId);
+      if (!await f.exists()) return null;
+      return (jsonDecode(await f.readAsString()) as List).cast<String>();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Traduce línea por línea (las repetidas se traducen una vez).
+  static Future<List<String>?> translate(String songId, Lyrics l) async {
+    final saved = await cached(songId);
+    if (saved != null && saved.length == l.lines.length) return saved;
+    final unique = <String>{
+      for (final line in l.lines)
+        if (line.text.trim().isNotEmpty && line.text != '♪') line.text.trim(),
+    }.toList();
+    final out = <String, String>{};
+    try {
+      // De a 4 a la vez para no saturar el servicio.
+      for (var i = 0; i < unique.length; i += 4) {
+        final batch = unique.skip(i).take(4).toList();
+        final results = await Future.wait(batch.map(_one));
+        for (var k = 0; k < batch.length; k++) {
+          if (results[k] != null) out[batch[k]] = results[k]!;
+        }
+      }
+    } catch (e) {
+      debugPrint('Traducción falló: $e');
+    }
+    if (out.isEmpty) return null;
+    final result = [for (final line in l.lines) out[line.text.trim()] ?? ''];
+    try {
+      await _file(songId).writeAsString(jsonEncode(result));
+    } catch (_) {}
+    return result;
+  }
+
+  static Future<String?> _one(String text) async {
+    final q = text.length > 450 ? text.substring(0, 450) : text;
+    final res = await http
+        .get(
+          Uri.https('api.mymemory.translated.net', '/get', {
+            'q': q,
+            'langpair': 'en|es',
+          }),
+          headers: {'User-Agent': 'KennyMusic/1.0'},
+        )
+        .timeout(const Duration(seconds: 12));
+    if (res.statusCode != 200) return null;
+    final j = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    final t = (j['responseData'] as Map?)?['translatedText'] as String?;
+    if (t == null || t.trim().isEmpty) return null;
+    // Cuando se acaba el límite diario, el servicio devuelve un aviso en inglés.
+    if (t.toUpperCase().contains('MYMEMORY WARNING')) {
+      throw const HttpException('Límite diario de traducciones alcanzado');
+    }
+    return t.trim();
+  }
+}
+
 /// La letra de la canción que está sonando.
 class NowLyrics extends ChangeNotifier {
   String? songId;

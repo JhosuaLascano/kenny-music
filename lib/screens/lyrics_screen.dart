@@ -23,6 +23,30 @@ class _LyricsScreenState extends State<LyricsScreen> {
   int _current = -1;
   DateTime _userScrolledAt = DateTime(2000);
 
+  // Traducción al español (se pide una vez por canción y se guarda).
+  List<String>? _tr;
+  String? _trFor;
+  bool _trLoading = false;
+
+  Future<void> _loadTranslation(String songId, Lyrics l) async {
+    if (_trFor == songId || _trLoading) return;
+    _trFor = songId;
+    _tr = null;
+    setState(() => _trLoading = true);
+    final t = await LyricsTranslator.translate(songId, l);
+    if (!mounted || _trFor != songId) return;
+    setState(() {
+      _tr = t;
+      _trLoading = false;
+    });
+    if (t == null && mounted) {
+      toast(
+        context,
+        'No se pudo traducir ahora (sin internet o límite diario)',
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -101,6 +125,43 @@ class _LyricsScreenState extends State<LyricsScreen> {
                               ],
                             ),
                           ),
+                          // Tamaño de la letra: más chica / más grande.
+                          IconButton(
+                            tooltip: 'Letra más chica',
+                            onPressed: () =>
+                                store.setLyricsSize(store.lyricsSize - 2),
+                            icon: const Icon(Icons.text_decrease_rounded),
+                          ),
+                          IconButton(
+                            tooltip: 'Letra más grande',
+                            onPressed: () =>
+                                store.setLyricsSize(store.lyricsSize + 2),
+                            icon: const Icon(Icons.text_increase_rounded),
+                          ),
+                          // Traducir al español (solo si la letra está en inglés).
+                          ListenableBuilder(
+                            listenable: Listenable.merge([nowLyrics, store]),
+                            builder: (context, _) {
+                              final l = nowLyrics.lyrics;
+                              if (l == null ||
+                                  !LyricsTranslator.looksEnglish(l)) {
+                                return const SizedBox.shrink();
+                              }
+                              final on = store.translateLyrics;
+                              return IconButton(
+                                tooltip: on
+                                    ? 'Ocultar traducción'
+                                    : 'Traducir al español',
+                                style: IconButton.styleFrom(
+                                  backgroundColor: on
+                                      ? const Color(0x40FFFFFF)
+                                      : Colors.transparent,
+                                ),
+                                onPressed: () => store.setTranslateLyrics(!on),
+                                icon: const Icon(Icons.translate_rounded),
+                              );
+                            },
+                          ),
                           IconButton(
                             tooltip: 'Cerrar letra',
                             onPressed: () => Navigator.pop(context),
@@ -111,8 +172,21 @@ class _LyricsScreenState extends State<LyricsScreen> {
                     ),
                     Expanded(
                       child: ListenableBuilder(
-                        listenable: nowLyrics,
-                        builder: (context, _) => _body(nowLyrics.lyrics),
+                        listenable: Listenable.merge([nowLyrics, store]),
+                        builder: (context, _) {
+                          final l = nowLyrics.lyrics;
+                          final id = audio.current?.id;
+                          if (store.translateLyrics &&
+                              l != null &&
+                              id != null &&
+                              LyricsTranslator.looksEnglish(l) &&
+                              _trFor != id) {
+                            WidgetsBinding.instance.addPostFrameCallback(
+                              (_) => _loadTranslation(id, l),
+                            );
+                          }
+                          return _body(l);
+                        },
                       ),
                     ),
                     _footer(),
@@ -217,12 +291,36 @@ class _LyricsScreenState extends State<LyricsScreen> {
             child: AnimatedDefaultTextStyle(
               duration: const Duration(milliseconds: 250),
               style: TextStyle(
-                fontSize: l.synced ? 24 : 19,
+                fontSize: l.synced
+                    ? store.lyricsSize.toDouble()
+                    : store.lyricsSize * 0.8,
                 height: 1.22,
                 fontWeight: l.synced ? FontWeight.w800 : FontWeight.w600,
                 color: color,
               ),
-              child: Text(line.text),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(line.text),
+                  // Traducción al español debajo de la línea original.
+                  if (store.translateLyrics &&
+                      _tr != null &&
+                      i < _tr!.length &&
+                      _tr![i].isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        _tr![i],
+                        style: TextStyle(
+                          fontSize: store.lyricsSize * 0.62,
+                          fontWeight: FontWeight.w500,
+                          fontStyle: FontStyle.italic,
+                          color: color.withValues(alpha: color.a * 0.75),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         );

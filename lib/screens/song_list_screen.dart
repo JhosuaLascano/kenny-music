@@ -153,7 +153,10 @@ class SongListScreen extends StatelessWidget {
                             tooltip: 'Reproducir todo',
                             onPressed: list.isEmpty
                                 ? null
-                                : () => audio.playSongs(list),
+                                : () => audio.playSongs(
+                                    list,
+                                    from: p?.name ?? title,
+                                  ),
                             icon: const Icon(
                               Icons.play_arrow_rounded,
                               color: Colors.black,
@@ -189,7 +192,11 @@ class SongListScreen extends StatelessWidget {
                               child: SongTile(
                                 song: list[i],
                                 playlist: p,
-                                onTap: () => audio.playSongs(list, start: i),
+                                onTap: () => audio.playSongs(
+                                  list,
+                                  start: i,
+                                  from: p.name,
+                                ),
                               ),
                             ),
                           ),
@@ -199,7 +206,11 @@ class SongListScreen extends StatelessWidget {
                       itemCount: list.length,
                       itemBuilder: (context, i) => SongTile(
                         song: list[i],
-                        onTap: () => audio.playSongs(list, start: i),
+                        onTap: () => audio.playSongs(
+                          list,
+                          start: i,
+                          from: p?.name ?? title,
+                        ),
                       ),
                     ),
                   const SliverToBoxAdapter(child: SizedBox(height: 120)),

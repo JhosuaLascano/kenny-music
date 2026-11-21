@@ -137,7 +137,11 @@ class HomeTab extends StatelessWidget {
                     itemCount: all.length,
                     itemBuilder: (context, i) => _GridSong(
                       song: all[i],
-                      onTap: () => audio.playSongs(all, start: i),
+                      onTap: () => audio.playSongs(
+                        all,
+                        start: i,
+                        from: 'Toda la música',
+                      ),
                     ),
                   ),
                 )
@@ -146,7 +150,8 @@ class HomeTab extends StatelessWidget {
                   itemCount: all.length,
                   itemBuilder: (context, i) => SongTile(
                     song: all[i],
-                    onTap: () => audio.playSongs(all, start: i),
+                    onTap: () =>
+                        audio.playSongs(all, start: i, from: 'Toda la música'),
                   ),
                 ),
               const SliverToBoxAdapter(

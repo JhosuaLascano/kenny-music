@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -21,6 +23,7 @@ Future<void> main() async {
     ),
   );
   nowLyrics.follow(audio.mediaItem);
+  unawaited(audio.restoreSession()); // retomar donde quedaste
   WidgetSync.start(); // widget de iPhone
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(

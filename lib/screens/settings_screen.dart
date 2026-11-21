@@ -12,6 +12,7 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import 'explore_tab.dart';
 import 'home_shell.dart';
+import 'song_list_screen.dart';
 
 const _bgStyles = [
   ('blur', 'Portada difuminada'),
@@ -86,6 +87,18 @@ class MoreMenu extends StatelessWidget {
                 () => open(const StatsScreen()),
               ),
               (
+                Icons.history_rounded,
+                const Color(0xFF0D9488),
+                'Historial',
+                'Lo último que escuchaste',
+                () => openList(
+                  context,
+                  'Historial',
+                  () => store.recentSongs,
+                  subtitle: 'Las últimas 30 canciones que escuchaste',
+                ),
+              ),
+              (
                 Icons.search_rounded,
                 const Color(0xFF0891B2),
                 'Buscar',
@@ -126,11 +139,11 @@ class MoreMenu extends StatelessWidget {
                 Icons.info_rounded,
                 const Color(0xFF3F3F46),
                 'Acerca de',
-                'Kenny Music 1.9.0',
+                'Kenny Music 2.2.0',
                 () => showAboutDialog(
                   context: context,
                   applicationName: 'Kenny Music',
-                  applicationVersion: '1.9.0',
+                  applicationVersion: '2.2.0',
                   applicationLegalese: 'Hecho por LA DATA',
                 ),
               ),
@@ -175,7 +188,7 @@ class MoreMenu extends StatelessWidget {
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(
-                          color: items[i].$2,
+                          color: const Color(0x1FFFFFFF), // neutro, sin colores
                           borderRadius: BorderRadius.circular(9),
                         ),
                         child: Icon(items[i].$1, color: Colors.white, size: 20),
@@ -1108,6 +1121,7 @@ class _AccentPickerState extends State<_AccentPicker> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       for (final group in const [
+                        'Neutros',
                         'Cálidos',
                         'Fríos',
                         'Intensos',

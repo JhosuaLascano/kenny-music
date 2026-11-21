@@ -1,6 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 /// Texto que se desliza solo cuando no cabe (como el título en el reproductor).
+///
+/// Se desliza una vuelta y luego se queda QUIETO unos segundos sin pedir
+/// cuadros nuevos (con un Timer, no con la animación). Antes la animación no
+/// paraba nunca: obligaba a redibujar todo el tiempo el vidrio de la barra y
+/// del mini-reproductor, y eso trababa la app en iPhone y Android.
 class Marquee extends StatefulWidget {
   const Marquee(this.text, {super.key, required this.style});
   final String text;
@@ -12,34 +19,62 @@ class Marquee extends StatefulWidget {
 
 class _MarqueeState extends State<Marquee> with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(vsync: this);
-  double _textW = 0;
+  Timer? _wait;
+  double _textW = 0; // ancho del texto que se está deslizando (0 = quieto)
   static const _gap = 48.0;
-  static const _pause = 2.0; // segundos quieto antes de moverse
+  static const _pause = Duration(seconds: 3);
+
+  @override
+  void didUpdateWidget(Marquee old) {
+    super.didUpdateWidget(old);
+    if (old.text != widget.text) _reset();
+  }
 
   @override
   void dispose() {
+    _wait?.cancel();
     _c.dispose();
     super.dispose();
   }
 
-  Duration _durFor(double textW) =>
-      Duration(milliseconds: ((((textW + _gap) / 35) + _pause) * 1000).round());
+  void _reset() {
+    _wait?.cancel();
+    _c.stop();
+    _c.value = 0;
+    _textW = 0;
+  }
 
-  /// Arranca o detiene la animación DESPUÉS de dibujar (nunca durante el
-  /// dibujo: en iPhone eso podía trabar la app).
+  /// Una vuelta: espera, se desliza, vuelve al inicio y repite.
+  void _loop() {
+    _wait?.cancel();
+    _wait = Timer(_pause, () async {
+      if (!mounted || _textW == 0) return;
+      _c.duration = Duration(
+        milliseconds: ((_textW + _gap) / 35 * 1000).round(),
+      );
+      try {
+        await _c.forward(from: 0).orCancel;
+      } catch (_) {
+        return; // se detuvo (cambió el texto o se cerró la pantalla)
+      }
+      if (!mounted) return;
+      _c.value = 0;
+      _loop();
+    });
+  }
+
+  /// Arranca o detiene DESPUÉS de dibujar (nunca durante el dibujo).
   void _schedule(double? textW) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (textW == null) {
-        if (_c.isAnimating) _c.stop();
-        if (_c.value != 0) _c.value = 0;
-        _textW = 0;
+        if (_textW != 0) _reset();
         return;
       }
-      if (textW == _textW && _c.isAnimating) return;
+      if (textW == _textW) return;
+      _reset();
       _textW = textW;
-      _c.duration = _durFor(textW);
-      _c.repeat();
+      _loop();
     });
   }
 
@@ -53,15 +88,13 @@ class _MarqueeState extends State<Marquee> with SingleTickerProviderStateMixin {
           textDirection: TextDirection.ltr,
           textScaler: MediaQuery.textScalerOf(context),
         )..layout();
-        final h = tp.height;
         if (tp.width <= box.maxWidth) {
-          if (_textW != 0 || _c.isAnimating) _schedule(null);
+          if (_textW != 0) _schedule(null);
           return Text(widget.text, maxLines: 1, style: widget.style);
         }
-        if (tp.width != _textW || !_c.isAnimating) _schedule(tp.width);
-        final total = _durFor(tp.width).inMilliseconds / 1000;
+        if (tp.width != _textW) _schedule(tp.width);
         return SizedBox(
-          height: h,
+          height: tp.height,
           child: ClipRect(
             child: ShaderMask(
               shaderCallback: (r) => const LinearGradient(
@@ -77,13 +110,8 @@ class _MarqueeState extends State<Marquee> with SingleTickerProviderStateMixin {
               child: AnimatedBuilder(
                 animation: _c,
                 builder: (context, _) {
-                  final secs = _c.value * total;
-                  final p = secs < _pause
-                      ? 0.0
-                      : (secs - _pause) / (total - _pause);
                   final dx =
-                      -(tp.width + _gap) *
-                      Curves.easeInOut.transform(p.clamp(0.0, 1.0));
+                      -(tp.width + _gap) * Curves.easeInOut.transform(_c.value);
                   return OverflowBox(
                     alignment: Alignment.centerLeft,
                     maxWidth: double.infinity,

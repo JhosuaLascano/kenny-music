@@ -21,7 +21,10 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
     _initSession();
     // Cuenta los minutos escuchados (para el panel "Tu música").
     Timer.periodic(const Duration(seconds: 5), (_) {
-      if (_p.playing) store.addListen(5000);
+      if (_p.playing) {
+        store.addListen(5000);
+        _saveSession(); // para retomar en el mismo segundo
+      }
     });
   }
 
@@ -109,6 +112,9 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> _initSession() async {
     final s = await AudioSession.instance;
     await s.configure(const AudioSessionConfiguration.music());
+    // Si se desconectan los audífonos o el Bluetooth, la música se pausa
+    // (para que no empiece a sonar por el parlante).
+    s.becomingNoisyEventStream.listen((_) => pause());
   }
 
   void _listen(int i) {
@@ -161,12 +167,17 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
   // ---------- Reproducir ----------
 
   /// Reproduce una lista de canciones empezando por [start].
+  /// De dónde viene la cola (se muestra como "A continuación de: …").
+  String queueFrom = 'tu biblioteca';
+
   Future<void> playSongs(
     List<Song> songs, {
     int start = 0,
     bool shuffle = false,
+    String? from,
   }) async {
     if (songs.isEmpty) return;
+    queueFrom = from ?? 'tu biblioteca';
     _original = List.of(songs);
     _shuffle = shuffle;
     if (shuffle) {
@@ -233,6 +244,7 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
     _index = i;
     mediaItem.add(_item(song));
     store.markPlayed(song.id);
+    _saveSession();
 
     if (fade) {
       final old = _p;
@@ -296,6 +308,21 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
     if (_queue.isEmpty) return null;
     if (i + 1 < _queue.length) return i + 1;
     if (_repeat == AudioServiceRepeatMode.all) return 0;
+    // Reproducción continua (∞): al terminar la lista sigue con canciones
+    // al azar de la biblioteca que todavía no estén en la cola.
+    if (store.autoplay) {
+      final inQueue = _queue.map((s) => s.id).toSet();
+      final extra =
+          store.allSongs.where((s) => !inQueue.contains(s.id)).toList()
+            ..shuffle(Random());
+      if (extra.isNotEmpty) {
+        final add = extra.take(10).toList();
+        _queue.addAll(add);
+        _original.addAll(add);
+        _publishQueue();
+        return i + 1;
+      }
+    }
     return null;
   }
 
@@ -365,13 +392,78 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
       await _playIndex(_index);
       return;
     }
+    // Reanuda suave: el volumen sube de a poco.
+    await _p.setVolume(0);
     _p.play();
+    await _ramp(_p, 0, _volume);
   }
 
   @override
   Future<void> pause() async {
     _cancelFade();
-    await _p.pause();
+    // Pausa suave: el volumen baja de a poco antes de pausar.
+    final p = _p;
+    if (p.playing) await _ramp(p, _volume, 0);
+    await p.pause();
+    await p.setVolume(_volume);
+    _saveSession();
+  }
+
+  /// Cambia el volumen de [from] a [to] en ~250 ms.
+  Future<void> _ramp(AudioPlayer p, double from, double to) async {
+    const steps = 8;
+    for (var i = 1; i <= steps; i++) {
+      await p.setVolume(from + (to - from) * i / steps);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+    }
+  }
+
+  // ---------- Retomar donde quedaste ----------
+
+  void _saveSession() {
+    if (_queue.isEmpty) return;
+    store.saveSession(
+      _queue.map((s) => s.id).toList(),
+      _index,
+      _p.position.inMilliseconds,
+      queueFrom,
+    );
+  }
+
+  /// Al abrir la app: carga la última canción en el mismo segundo (en pausa).
+  Future<void> restoreSession() async {
+    final songs = store.lastQueue
+        .map((id) => store.songs[id])
+        .whereType<Song>()
+        .toList();
+    if (songs.isEmpty || current != null) return;
+    _queue = songs;
+    _original = List.of(songs);
+    queueFrom = store.lastFrom;
+    _index = store.lastIndex.clamp(0, songs.length - 1);
+    try {
+      await _p.setFilePath(store.resolve(_queue[_index].path));
+      await _p.seek(Duration(milliseconds: store.lastPosMs));
+    } catch (_) {
+      _queue = [];
+      _original = [];
+      _index = -1;
+      return;
+    }
+    mediaItem.add(_item(_queue[_index]));
+    _publishQueue();
+    _broadcast();
+  }
+
+  // ---------- Velocidad ----------
+
+  double get speed => _p.speed;
+
+  Future<void> setSpeed(double s) async {
+    await _players[0].setSpeed(s);
+    await _players[1].setSpeed(s);
+    changes.value++;
+    _broadcast();
   }
 
   Future<void> togglePlay() => _p.playing ? pause() : play();

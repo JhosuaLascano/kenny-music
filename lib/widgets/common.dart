@@ -13,6 +13,10 @@ import '../screens/player_screen.dart' show openPlayerScreen;
 import '../theme.dart';
 import 'marquee.dart';
 
+/// Etiqueta compartida por la portada del mini-reproductor y la del
+/// reproductor grande (animación al minimizar y al abrir).
+const kNowCoverTag = 'now-playing-cover';
+
 Color accentOf(BuildContext context) => Theme.of(context).colorScheme.primary;
 
 const _placeholderPairs = [
@@ -119,7 +123,9 @@ class SongTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 15,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: playing
+                              ? FontWeight.w800
+                              : FontWeight.w500,
                           color: playing ? accent : kText,
                         ),
                       ),
@@ -742,14 +748,16 @@ class _GlassNavBarState extends State<GlassNavBar> {
                                     Icon(
                                       GlassNavBar.items[i].$1,
                                       size: 22,
-                                      color: i == lit ? accent : Colors.white70,
+                                      color: i == lit ? accent : Colors.white60,
                                     ),
                                     const SizedBox(height: 3),
                                     Text(
                                       GlassNavBar.items[i].$2,
                                       style: TextStyle(
                                         fontSize: 11,
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight: i == lit
+                                            ? FontWeight.w800
+                                            : FontWeight.w500,
                                         color: i == lit
                                             ? accent
                                             : Colors.white70,
@@ -833,7 +841,12 @@ class _MiniPlayerState extends State<MiniPlayer> {
                 padding: const EdgeInsets.fromLTRB(12, 9, 6, 9),
                 child: Row(
                   children: [
-                    CoverArt(song: song, size: 44, radius: 8),
+                    // Misma "pieza" que la portada del reproductor: vuela al abrir y cerrar.
+                    Hero(
+                      tag: kNowCoverTag,
+                      transitionOnUserGestures: true,
+                      child: CoverArt(song: song, size: 44, radius: 8),
+                    ),
                     const SizedBox(width: 12),
                     // Título y artista en dos líneas.
                     Expanded(

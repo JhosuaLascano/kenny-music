@@ -31,12 +31,15 @@ class LibraryStore extends ChangeNotifier {
   String progressStyle = 'thin'; // thin | capsule | wave
   String homeLayout = 'list'; // list | grid | featured
   List<double> eqGains = [0, 0, 0, 0, 0]; // ecualizador (dB, solo Android)
-  int accentIndex = 0;
+  int accentIndex = kWhiteAccent;
 
   /// Solo cambia con el color de acento (la app entera escucha esto, no todo el store).
-  final accentNotifier = ValueNotifier<int>(0);
+  final accentNotifier = ValueNotifier<int>(kWhiteAccent);
   int crossfade = 5; // segundos, 0 = apagado
   bool onlineLyrics = true;
+  bool autoplay = false; // reproducción continua (∞)
+  bool translateLyrics = false; // mostrar traducción al español
+  int lyricsSize = 24; // tamaño de la letra (px)
 
   Timer? _saveTimer;
   bool scanning = false;
@@ -64,6 +67,11 @@ class LibraryStore extends ChangeNotifier {
           ),
         );
         recents.addAll((j['recents'] as List? ?? []).cast<String>());
+        final ses = j['session'] as Map? ?? {};
+        lastQueue = (ses['queue'] as List? ?? []).cast<String>();
+        lastIndex = (ses['index'] as num?)?.toInt() ?? 0;
+        lastPosMs = (ses['pos'] as num?)?.toInt() ?? 0;
+        lastFrom = ses['from'] as String? ?? lastFrom;
         listenMs = (j['listenMs'] as num?)?.toInt() ?? 0;
         (j['weekMs'] as Map? ?? {}).forEach(
           (k, v) => weekMs[k as String] = (v as num).toInt(),
@@ -82,19 +90,54 @@ class LibraryStore extends ChangeNotifier {
         final eq = s['eqGains'] as List?;
         if (eq != null) eqGains = eq.map((e) => (e as num).toDouble()).toList();
         accentIndex = (s['accentIndex'] as num?)?.toInt() ?? accentIndex;
+        // Cambio a un estilo sin color: el acento pasa a ser blanco una vez.
+        if (s['neutral'] != true) accentIndex = kWhiteAccent;
         accentNotifier.value = accentIndex;
         crossfade = (s['crossfade'] as num?)?.toInt() ?? crossfade;
         onlineLyrics = s['onlineLyrics'] as bool? ?? onlineLyrics;
+        autoplay = s['autoplay'] as bool? ?? autoplay;
+        translateLyrics = s['translateLyrics'] as bool? ?? translateLyrics;
+        lyricsSize = (s['lyricsSize'] as num?)?.toInt() ?? lyricsSize;
       }
     } catch (e) {
       debugPrint('No se pudo leer los datos: $e');
     }
   }
 
+  // Listas ordenadas y agrupadas: se calculan una vez y se reutilizan hasta
+  // que algo cambia (antes cada pestaña las recalculaba en cada redibujo,
+  // y con muchas canciones eso trababa la app).
+  int _ver = 0;
+  final Map<String, (int, Object)> _memo = {};
+  T _cached<T extends Object>(String key, T Function() build) {
+    final m = _memo[key];
+    if (m != null && m.$1 == _ver) return m.$2 as T;
+    final v = build();
+    _memo[key] = (_ver, v);
+    return v;
+  }
+
+  // ---------- Última sesión (para retomar donde quedaste) ----------
+  List<String> lastQueue = [];
+  int lastIndex = 0;
+  int lastPosMs = 0;
+  String lastFrom = 'tu biblioteca';
+
+  /// Guarda la cola y la posición SIN redibujar la app.
+  void saveSession(List<String> queue, int index, int posMs, String from) {
+    lastQueue = queue;
+    lastIndex = index;
+    lastPosMs = posMs;
+    lastFrom = from;
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(seconds: 2), _save);
+  }
+
   void _changed() {
+    _ver++;
     notifyListeners();
     _saveTimer?.cancel();
-    _saveTimer = Timer(const Duration(milliseconds: 400), _save);
+    _saveTimer = Timer(const Duration(seconds: 2), _save);
   }
 
   Future<void> _save() async {
@@ -103,6 +146,12 @@ class LibraryStore extends ChangeNotifier {
       'favorites': favorites.toList(),
       'playlists': playlists.map((p) => p.toJson()).toList(),
       'recents': recents,
+      'session': {
+        'queue': lastQueue,
+        'index': lastIndex,
+        'pos': lastPosMs,
+        'from': lastFrom,
+      },
       'plays': plays,
       'listenMs': listenMs,
       'weekMs': weekMs,
@@ -116,8 +165,12 @@ class LibraryStore extends ChangeNotifier {
         'homeLayout': homeLayout,
         'eqGains': eqGains,
         'accentIndex': accentIndex,
+        'neutral': true,
         'crossfade': crossfade,
         'onlineLyrics': onlineLyrics,
+        'autoplay': autoplay,
+        'translateLyrics': translateLyrics,
+        'lyricsSize': lyricsSize,
       },
     };
     final tmp = File('${_file.path}.tmp');
@@ -131,19 +184,22 @@ class LibraryStore extends ChangeNotifier {
 
   // ---------- Canciones ----------
 
-  List<Song> get allSongs {
+  List<Song> get allSongs => _cached('all', _allSongs);
+  List<Song> _allSongs() {
     final l = songs.values.toList()
       ..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
     return l;
   }
 
-  List<Song> get newest {
+  List<Song> get newest => _cached('newest', _newest);
+  List<Song> _newest() {
     final l = songs.values.toList()
       ..sort((a, b) => b.addedAt.compareTo(a.addedAt));
     return l;
   }
 
-  List<Song> get mostPlayed {
+  List<Song> get mostPlayed => _cached('most', _mostPlayed);
+  List<Song> _mostPlayed() {
     final l = songs.values.where((s) => (plays[s.id] ?? 0) > 0).toList()
       ..sort((a, b) => (plays[b.id] ?? 0).compareTo(plays[a.id] ?? 0));
     return l;
@@ -158,7 +214,8 @@ class LibraryStore extends ChangeNotifier {
   List<Song> songsOf(Playlist p) =>
       p.songIds.map((id) => songs[id]).whereType<Song>().toList();
 
-  List<SongGroup> get albums {
+  List<SongGroup> get albums => _cached('albums', _albums);
+  List<SongGroup> _albums() {
     final map = <String, List<Song>>{};
     for (final s in songs.values) {
       map.putIfAbsent('${s.album}\u0000${s.artist}', () => []).add(s);
@@ -184,7 +241,8 @@ class LibraryStore extends ChangeNotifier {
     return groups;
   }
 
-  List<SongGroup> get artists {
+  List<SongGroup> get artists => _cached('artists', _artists);
+  List<SongGroup> _artists() {
     final map = <String, List<Song>>{};
     for (final s in songs.values) {
       map.putIfAbsent(s.artist, () => []).add(s);
@@ -258,7 +316,8 @@ class LibraryStore extends ChangeNotifier {
   }
 
   /// Canciones agrupadas por la carpeta donde están en el celular.
-  List<SongGroup> get folders {
+  List<SongGroup> get folders => _cached('folders', _folders);
+  List<SongGroup> _folders() {
     final map = <String, List<Song>>{};
     for (final s in songs.values) {
       final String name;
@@ -460,6 +519,29 @@ class LibraryStore extends ChangeNotifier {
     _changed();
   }
 
+  /// Ordena la playlist de una vez: 'title', 'artist', 'recent' o 'duration'.
+  void sortPlaylist(Playlist p, String by) {
+    final list = songsOf(p);
+    switch (by) {
+      case 'title':
+        list.sort(
+          (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+        );
+      case 'artist':
+        list.sort(
+          (a, b) => a.artist.toLowerCase().compareTo(b.artist.toLowerCase()),
+        );
+      case 'recent':
+        list.sort((a, b) => b.addedAt.compareTo(a.addedAt));
+      case 'duration':
+        list.sort((a, b) => a.durationMs.compareTo(b.durationMs));
+    }
+    p.songIds
+      ..clear()
+      ..addAll(list.map((s) => s.id));
+    _changed();
+  }
+
   // ---------- Ajustes ----------
 
   void setBgStyle(String v) {
@@ -516,6 +598,21 @@ class LibraryStore extends ChangeNotifier {
     _changed();
   }
 
+  void setTranslateLyrics(bool v) {
+    translateLyrics = v;
+    _changed();
+  }
+
+  void setLyricsSize(int v) {
+    lyricsSize = v.clamp(16, 34);
+    _changed();
+  }
+
+  void setAutoplay(bool v) {
+    autoplay = v;
+    _changed();
+  }
+
   void setOnlineLyrics(bool v) {
     onlineLyrics = v;
     _changed();
@@ -527,3 +624,5 @@ class LibraryStore extends ChangeNotifier {
     notifyListeners();
   }
 }
+
+const kWhiteAccent = 18; // índice de 'Blanco' en theme.dart

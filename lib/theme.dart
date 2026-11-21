@@ -30,6 +30,9 @@ const accents = <Accent>[
   Accent('Fucsia', Color(0xFFE879F9), 'Intensos'),
   Accent('Frambuesa', Color(0xFFFB7185), 'Intensos'),
   Accent('Rojo', Color(0xFFF87171), 'Intensos'),
+  // Neutros: el blanco es el acento por defecto (look elegante, sin color).
+  Accent('Blanco', Color(0xFFFFFFFF), 'Neutros'),
+  Accent('Plata', Color(0xFFC8CCD4), 'Neutros'),
 ];
 
 const kBg = Color(0xFF0B0B0D);
@@ -76,6 +79,17 @@ ThemeData buildTheme(Color accent) {
       thumbColor: accent,
       inactiveTrackColor: kSurface2,
       overlayShape: SliderComponentShape.noOverlay,
+    ),
+    // Opciones elegidas: fondo blanco y letra negra en negrita (sin colores).
+    chipTheme: ChipThemeData(
+      backgroundColor: const Color(0x14FFFFFF),
+      selectedColor: accent,
+      side: const BorderSide(color: Color(0x24FFFFFF)),
+      labelStyle: WidgetStateTextStyle.resolveWith(
+        (s) => s.contains(WidgetState.selected)
+            ? const TextStyle(color: Colors.black, fontWeight: FontWeight.w800)
+            : const TextStyle(color: kText, fontWeight: FontWeight.w500),
+      ),
     ),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith(
