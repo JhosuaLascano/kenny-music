@@ -58,16 +58,33 @@ class _SearchTabState extends State<SearchTab> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Buscar',
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
-                        ),
+                      Row(
+                        children: [
+                          // Flecha para volver al menú.
+                          if (Navigator.of(context).canPop()) ...[
+                            IconButton.filledTonal(
+                              tooltip: 'Volver',
+                              onPressed: () => Navigator.of(context).pop(),
+                              icon: const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                          ],
+                          const Text(
+                            'Buscar',
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 14),
                       TextField(
                         controller: _ctrl,
+                        // El teclado se abre solo al entrar.
+                        autofocus: widget.active,
                         onChanged: (v) => setState(() => _q = v),
                         textInputAction: TextInputAction.search,
                         decoration: InputDecoration(

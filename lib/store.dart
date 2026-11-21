@@ -26,7 +26,11 @@ class LibraryStore extends ChangeNotifier {
   String homeBgStyle = 'grad'; // fondo del menú principal
   int blurAmount = 60; // 0-100, desenfoque de la portada de fondo
   int gradIntensity = 70; // 0-100, cuánto color tiene el degradado
-  String playerLayout = 'classic'; // classic | full | visual
+  String playerLayout =
+      'classic'; // classic | full | visual | minimal | lyrics | poster
+  String progressStyle = 'thin'; // thin | capsule | wave
+  String homeLayout = 'list'; // list | grid | featured
+  List<double> eqGains = [0, 0, 0, 0, 0]; // ecualizador (dB, solo Android)
   int accentIndex = 0;
 
   /// Solo cambia con el color de acento (la app entera escucha esto, no todo el store).
@@ -73,6 +77,10 @@ class LibraryStore extends ChangeNotifier {
         blurAmount = (s['blurAmount'] as num?)?.toInt() ?? blurAmount;
         gradIntensity = (s['gradIntensity'] as num?)?.toInt() ?? gradIntensity;
         playerLayout = s['playerLayout'] as String? ?? playerLayout;
+        progressStyle = s['progressStyle'] as String? ?? progressStyle;
+        homeLayout = s['homeLayout'] as String? ?? homeLayout;
+        final eq = s['eqGains'] as List?;
+        if (eq != null) eqGains = eq.map((e) => (e as num).toDouble()).toList();
         accentIndex = (s['accentIndex'] as num?)?.toInt() ?? accentIndex;
         accentNotifier.value = accentIndex;
         crossfade = (s['crossfade'] as num?)?.toInt() ?? crossfade;
@@ -104,6 +112,9 @@ class LibraryStore extends ChangeNotifier {
         'blurAmount': blurAmount,
         'gradIntensity': gradIntensity,
         'playerLayout': playerLayout,
+        'progressStyle': progressStyle,
+        'homeLayout': homeLayout,
+        'eqGains': eqGains,
         'accentIndex': accentIndex,
         'crossfade': crossfade,
         'onlineLyrics': onlineLyrics,
@@ -275,6 +286,74 @@ class LibraryStore extends ChangeNotifier {
       songs.values.where((s) => s.album == album && s.artist == artist).toList()
         ..sort((a, b) => a.title.compareTo(b.title));
 
+  // ---------- Copia de seguridad ----------
+
+  /// Playlists, favoritas y reproducciones en un archivo. Las canciones se
+  /// guardan por su ruta, así se reconocen al reinstalar la app.
+  String exportBackup() {
+    String? pathOf(String id) => songs[id]?.path;
+    return const JsonEncoder.withIndent(' ').convert({
+      'app': 'kenny_music',
+      'version': 1,
+      'date': DateTime.now().toIso8601String(),
+      'favorites': favorites.map(pathOf).whereType<String>().toList(),
+      'playlists': [
+        for (final p in playlists)
+          {
+            'name': p.name,
+            'songs': p.songIds.map(pathOf).whereType<String>().toList(),
+          },
+      ],
+      'plays': {
+        for (final e in plays.entries)
+          if (pathOf(e.key) != null) pathOf(e.key)!: e.value,
+      },
+      'listenMs': listenMs,
+    });
+  }
+
+  /// Junta la copia con lo que ya hay. Devuelve cuántas playlists se tocaron.
+  int importBackup(String text) {
+    final j = jsonDecode(text);
+    if (j is! Map || j['app'] != 'kenny_music') {
+      throw const FormatException('No es una copia de Kenny Music');
+    }
+    String? idOf(Object? path) {
+      if (path is! String) return null;
+      final id = songIdFor(path);
+      return songs.containsKey(id) ? id : null;
+    }
+
+    for (final f in (j['favorites'] as List? ?? [])) {
+      final id = idOf(f);
+      if (id != null) favorites.add(id);
+    }
+    var n = 0;
+    for (final p in (j['playlists'] as List? ?? [])) {
+      final name = (p as Map)['name'] as String? ?? 'Playlist';
+      final ids = (p['songs'] as List? ?? []).map(idOf).whereType<String>();
+      final existing = playlists.where((x) => x.name == name);
+      final target = existing.isNotEmpty
+          ? existing.first
+          : createPlaylist(name);
+      for (final id in ids) {
+        if (!target.songIds.contains(id)) target.songIds.add(id);
+      }
+      n++;
+    }
+    (j['plays'] as Map? ?? {}).forEach((path, count) {
+      final id = idOf(path);
+      if (id != null) {
+        final c = (count as num).toInt();
+        if (c > (plays[id] ?? 0)) plays[id] = c;
+      }
+    });
+    final ms = (j['listenMs'] as num?)?.toInt() ?? 0;
+    if (ms > listenMs) listenMs = ms;
+    _changed();
+    return n;
+  }
+
   /// Cambia la imagen de la canción por una elegida por el usuario.
   Future<void> setCustomCover(String id, String sourcePath) async {
     final s = songs[id];
@@ -395,6 +474,24 @@ class LibraryStore extends ChangeNotifier {
 
   void setGradIntensity(int v) {
     gradIntensity = v;
+    _changed();
+  }
+
+  void setProgressStyle(String v) {
+    progressStyle = v;
+    _changed();
+  }
+
+  void setHomeLayout(String v) {
+    homeLayout = v;
+    _changed();
+  }
+
+  void setEqGain(int band, double db) {
+    while (eqGains.length <= band) {
+      eqGains.add(0);
+    }
+    eqGains[band] = db;
     _changed();
   }
 

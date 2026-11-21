@@ -2,18 +2,34 @@ import 'package:flutter/material.dart';
 
 /// Un color de acento que el usuario puede elegir en Ajustes.
 class Accent {
-  const Accent(this.name, this.color);
+  const Accent(this.name, this.color, this.group);
   final String name;
   final Color color;
+
+  /// Grupo en el selector: Cálidos, Fríos o Intensos.
+  final String group;
 }
 
 const accents = <Accent>[
-  Accent('Naranja Kenny', Color(0xFFFF8A2B)),
-  Accent('Violeta', Color(0xFF9B72F2)),
-  Accent('Oro', Color(0xFFF2C64B)),
-  Accent('Menta', Color(0xFF34D399)),
-  Accent('Azul', Color(0xFF60A5FA)),
-  Accent('Rosa', Color(0xFFF472B6)),
+  // Los 6 primeros conservan su posición (es el color guardado de cada usuario).
+  Accent('Naranja Kenny', Color(0xFFFF8A2B), 'Cálidos'),
+  Accent('Violeta', Color(0xFF9B72F2), 'Intensos'),
+  Accent('Oro', Color(0xFFF2C64B), 'Cálidos'),
+  Accent('Menta', Color(0xFF34D399), 'Fríos'),
+  Accent('Azul', Color(0xFF60A5FA), 'Fríos'),
+  Accent('Rosa', Color(0xFFF472B6), 'Intensos'),
+  Accent('Mandarina', Color(0xFFFF6A1A), 'Cálidos'),
+  Accent('Durazno', Color(0xFFFFB37A), 'Cálidos'),
+  Accent('Limón', Color(0xFFE9E46A), 'Cálidos'),
+  Accent('Coral', Color(0xFFFF7A70), 'Cálidos'),
+  Accent('Esmeralda', Color(0xFF10B981), 'Fríos'),
+  Accent('Turquesa', Color(0xFF2DD4BF), 'Fríos'),
+  Accent('Cielo', Color(0xFF38BDF8), 'Fríos'),
+  Accent('Índigo', Color(0xFF818CF8), 'Fríos'),
+  Accent('Lila', Color(0xFFC084FC), 'Intensos'),
+  Accent('Fucsia', Color(0xFFE879F9), 'Intensos'),
+  Accent('Frambuesa', Color(0xFFFB7185), 'Intensos'),
+  Accent('Rojo', Color(0xFFF87171), 'Intensos'),
 ];
 
 const kBg = Color(0xFF0B0B0D);

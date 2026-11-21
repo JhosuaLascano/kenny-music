@@ -4,6 +4,7 @@ import '../app_state.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'add_songs_screen.dart';
 
 /// Lista de canciones genérica: álbum, artista, playlist, favoritas, etc.
 class SongListScreen extends StatelessWidget {
@@ -71,6 +72,57 @@ class SongListScreen extends StatelessWidget {
             children: [
               CustomScrollView(
                 slivers: [
+                  if (p != null)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
+                        child: Column(
+                          children: [
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x80000000),
+                                    blurRadius: 30,
+                                    offset: Offset(0, 14),
+                                  ),
+                                ],
+                              ),
+                              child: PlaylistCover(playlist: p, size: 200),
+                            ),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 46,
+                              child: OutlinedButton.icon(
+                                onPressed: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => AddSongsScreen(playlist: p),
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: accentOf(context),
+                                  side: BorderSide(
+                                    color: accentOf(context)
+                                        .withValues(alpha: 0.7),
+                                    width: 1.5,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                icon: const Icon(Icons.add_rounded),
+                                label: const Text(
+                                  'Agregar canciones',
+                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),

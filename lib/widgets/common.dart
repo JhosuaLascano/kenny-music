@@ -395,7 +395,27 @@ class PlaylistCover extends StatelessWidget {
         ),
       );
     }
-    return CoverArt(song: songs.first, size: size);
+    // Con 4 canciones o más: mosaico 2×2 con las portadas de las 4 primeras.
+    if (songs.length < 4) return CoverArt(song: songs.first, size: size);
+    final h = size / 2;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(size > 100 ? 16 : 8),
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Column(
+          children: [
+            for (final row in [0, 2])
+              Row(
+                children: [
+                  for (final i in [row, row + 1])
+                    CoverArt(song: songs[i], size: h, radius: 0),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -598,6 +618,7 @@ class GlassNavBar extends StatefulWidget {
 
 class _GlassNavBarState extends State<GlassNavBar> {
   double? _fingerX; // dónde está el dedo mientras se arrastra
+  double _stretch = 0; // cuánto se estira la gota según la velocidad del dedo
   bool _pressed = false;
   static const _pad = 5.0;
   static const _h = 62.0;
@@ -608,6 +629,7 @@ class _GlassNavBarState extends State<GlassNavBar> {
   void _finish(double x, double itemW) {
     final i = _indexAt(x, itemW);
     setState(() {
+      _stretch = 0;
       _fingerX = null;
       _pressed = false;
     });
@@ -634,8 +656,10 @@ class _GlassNavBarState extends State<GlassNavBar> {
               ? _indexAt(_fingerX!, itemW)
               : widget.index;
           // La gota es más grande que la barra y sobresale arriba y abajo.
-          final bw = drop ? itemW + 22 : itemW;
-          final bh = drop ? _h + 16 : _h - 8;
+          // La gota se estira hacia los lados al moverse rápido y se aplana un
+          // poco, como una gota de agua; al frenar vuelve a ser redonda.
+          final bw = drop ? itemW + 22 + _stretch : itemW;
+          final bh = drop ? _h + 16 - _stretch * 0.25 : _h - 8;
           return GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTapDown: (_) => setState(() => _pressed = true),
@@ -645,8 +669,13 @@ class _GlassNavBarState extends State<GlassNavBar> {
               _pressed = true;
               _fingerX = d.localPosition.dx;
             }),
-            onHorizontalDragUpdate: (d) =>
-                setState(() => _fingerX = d.localPosition.dx),
+            onHorizontalDragUpdate: (d) => setState(() {
+              _fingerX = d.localPosition.dx;
+              _stretch = (_stretch * 0.6 + d.delta.dx.abs() * 1.6).clamp(
+                0.0,
+                34.0,
+              );
+            }),
             onHorizontalDragEnd: (_) => _finish(_fingerX ?? 0, itemW),
             onHorizontalDragCancel: () => setState(() {
               _fingerX = null;
@@ -672,7 +701,7 @@ class _GlassNavBarState extends State<GlassNavBar> {
                       borderRadius: BorderRadius.circular(bh / 2),
                       color: drop
                           ? const Color(0x14FFFFFF)
-                          : const Color(0x66000000),
+                          : const Color(0x2EFFFFFF),
                       boxShadow: drop
                           ? const [
                               BoxShadow(
@@ -791,29 +820,46 @@ class _MiniPlayerState extends State<MiniPlayer> {
           onHorizontalDragEnd: (d) => _endDrag(d.velocity.pixelsPerSecond.dx),
           onHorizontalDragCancel: () => _endDrag(0),
           child: Glass(
-            radius: 27,
+            radius: 31,
             blur: false,
             child: SizedBox(
-              height: 54,
+              height: 62,
               child: AnimatedContainer(
                 duration: _dragging
                     ? Duration.zero
                     : const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
                 transform: Matrix4.translationValues(_dx * 0.6, 0, 0),
-                padding: const EdgeInsets.fromLTRB(7, 7, 4, 7),
+                padding: const EdgeInsets.fromLTRB(12, 9, 6, 9),
                 child: Row(
                   children: [
-                    CoverArt(song: song, size: 40, radius: 9),
+                    CoverArt(song: song, size: 44, radius: 8),
                     const SizedBox(width: 12),
+                    // Título y artista en dos líneas.
                     Expanded(
-                      child: Marquee(
-                        song.title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Marquee(
+                            song.title,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            song.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.white60,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     StreamBuilder<PlaybackState>(

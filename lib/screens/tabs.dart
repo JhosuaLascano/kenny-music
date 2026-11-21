@@ -198,52 +198,13 @@ class AlbumsTab extends StatelessWidget {
       const ExploreTab(initialMode: 1, title: 'Álbumes');
 }
 
-/// Pestaña "Más": buscar, artistas, agregar música y ajustes.
+/// Pestaña "Más": menú con Apariencia, Reproducción, Importar y más.
 class MoreTab extends StatelessWidget {
   const MoreTab({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    Widget link(IconData icon, String label, VoidCallback onTap) => ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: _iconBox(context, icon),
-      title: Text(label),
-      trailing: const Icon(
-        CupertinoIcons.chevron_right,
-        size: 18,
-        color: kMuted,
-      ),
-      onTap: onTap,
-    );
-    return SettingsScreen(
-      embedded: true,
-      header: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 10, bottom: 10),
-            child: Text(
-              'Más',
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
-            ),
-          ),
-          link(CupertinoIcons.search, 'Buscar', () => openSearch(context)),
-          link(
-            CupertinoIcons.person_2_fill,
-            'Artistas',
-            () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const Scaffold(
-                  body: ExploreTab(initialMode: 0, title: 'Artistas'),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 22),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      MoreMenu(onSearch: () => openSearch(context));
 }
 
 void openSearch(BuildContext context) {

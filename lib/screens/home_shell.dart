@@ -77,9 +77,37 @@ class _HomeShellState extends State<HomeShell> {
               left: 16,
               right: 16,
               bottom: bottom,
-              child: GlassNavBar(
-                index: _tab,
-                onTap: (i) => setState(() => _tab = i),
+              // Barra dividida: pestañas en una pastilla y la lupa aparte.
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GlassNavBar(
+                      index: _tab,
+                      onTap: (i) => setState(() => _tab = i),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Semantics(
+                    button: true,
+                    label: 'Buscar',
+                    child: GestureDetector(
+                      onTap: () => openSearch(context),
+                      child: const Glass(
+                        blur: false,
+                        radius: 31,
+                        child: SizedBox(
+                          width: 62,
+                          height: 62,
+                          child: Icon(
+                            Icons.search_rounded,
+                            size: 28,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

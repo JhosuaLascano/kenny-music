@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:audio_service/audio_service.dart';
@@ -25,7 +26,19 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   final LibraryStore store;
-  final List<AudioPlayer> _players = [AudioPlayer(), AudioPlayer()];
+  // Ecualizador (solo Android): uno por cada bandeja del crossfade.
+  late final List<AndroidEqualizer?> _eqs = List.generate(
+    2,
+    (_) => Platform.isAndroid ? AndroidEqualizer() : null,
+  );
+  late final List<AudioPlayer> _players = List.generate(
+    2,
+    (i) => Platform.isAndroid
+        ? AudioPlayer(
+            audioPipeline: AudioPipeline(androidAudioEffects: [_eqs[i]!]),
+          )
+        : AudioPlayer(),
+  );
   int _cur = 0;
   AudioPlayer get _p => _players[_cur];
 
@@ -203,6 +216,7 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
     final target = fade ? _players[1 - _cur] : _p;
     try {
       await target.setFilePath(path);
+      unawaited(_applyEq(_players.indexOf(target)));
       _failStreak = 0;
     } catch (e) {
       debugPrint('No se pudo abrir $path: $e');
@@ -456,6 +470,59 @@ class KennyAudioHandler extends BaseAudioHandler with SeekHandler {
     _queue.add(s);
     _original.add(s);
     _publishQueue();
+  }
+
+  /// Mueve una canción dentro de la cola (arrastrando en la lista).
+  void moveQueueItem(int oldIndex, int newIndex) {
+    if (oldIndex == newIndex ||
+        oldIndex < 0 ||
+        oldIndex >= _queue.length ||
+        newIndex < 0 ||
+        newIndex >= _queue.length) {
+      return;
+    }
+    final cur = current;
+    final s = _queue.removeAt(oldIndex);
+    _queue.insert(newIndex, s);
+    if (cur != null) _index = _queue.indexWhere((x) => identical(x, cur));
+    _publishQueue();
+    _broadcast();
+  }
+
+  // ---------- Ecualizador (Android) ----------
+
+  bool get hasEqualizer => _eqs.first != null;
+
+  Future<AndroidEqualizerParameters?> eqParameters() async {
+    final eq = _eqs[_cur];
+    if (eq == null) return null;
+    try {
+      return await eq.parameters.timeout(const Duration(seconds: 3));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> applyEqualizer() async {
+    for (var i = 0; i < 2; i++) {
+      await _applyEq(i);
+    }
+  }
+
+  Future<void> _applyEq(int i) async {
+    final eq = _eqs[i];
+    if (eq == null) return;
+    try {
+      await eq.setEnabled(store.eqGains.any((g) => g != 0));
+      final p = await eq.parameters.timeout(const Duration(seconds: 3));
+      for (var b = 0; b < p.bands.length && b < store.eqGains.length; b++) {
+        await p.bands[b].setGain(
+          store.eqGains[b].clamp(p.minDecibels, p.maxDecibels),
+        );
+      }
+    } catch (_) {
+      // El ecualizador del celular no respondió: se ignora.
+    }
   }
 
   void removeFromQueue(int i) {

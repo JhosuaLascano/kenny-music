@@ -84,6 +84,18 @@ class HomeTab extends StatelessWidget {
                     const ScanBanner(),
                     if (empty) const EmptyLibrary(),
                     if (!empty) ...[
+                      // Estilo "Destacados": tarjetas grandes deslizables.
+                      if (store.homeLayout == 'featured') ...[
+                        const SectionTitle('Destacadas'),
+                        _FeaturedCarousel(
+                          songs:
+                              (store.mostPlayed.isNotEmpty
+                                      ? store.mostPlayed
+                                      : store.newest)
+                                  .take(8)
+                                  .toList(),
+                        ),
+                      ],
                       const StatsPanel(),
                       const SectionTitle('Álbumes y singles'),
                       SizedBox(
@@ -110,13 +122,33 @@ class HomeTab extends StatelessWidget {
                   ],
                 ),
               ),
-              SliverList.builder(
-                itemCount: all.length,
-                itemBuilder: (context, i) => SongTile(
-                  song: all[i],
-                  onTap: () => audio.playSongs(all, start: i),
+              if (store.homeLayout == 'grid')
+                // Estilo "Cuadrícula": portadas de 3 en 3.
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  sliver: SliverGrid.builder(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          mainAxisSpacing: 14,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 0.74,
+                        ),
+                    itemCount: all.length,
+                    itemBuilder: (context, i) => _GridSong(
+                      song: all[i],
+                      onTap: () => audio.playSongs(all, start: i),
+                    ),
+                  ),
+                )
+              else
+                SliverList.builder(
+                  itemCount: all.length,
+                  itemBuilder: (context, i) => SongTile(
+                    song: all[i],
+                    onTap: () => audio.playSongs(all, start: i),
+                  ),
                 ),
-              ),
               const SliverToBoxAdapter(
                 child: SizedBox(height: kTabBottomSpace),
               ),
@@ -291,6 +323,112 @@ class StatsPanel extends StatelessWidget {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Canción en la cuadrícula del inicio.
+class _GridSong extends StatelessWidget {
+  const _GridSong({required this.song, required this.onTap});
+  final Song song;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      onLongPress: () => showSongMenu(context, song),
+      child: LayoutBuilder(
+        builder: (context, c) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CoverArt(song: song, size: c.maxWidth, radius: 10),
+            const SizedBox(height: 6),
+            Text(
+              song.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            Text(
+              song.artist,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: kMuted),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Tarjetas grandes deslizables (estilo "Destacados").
+class _FeaturedCarousel extends StatelessWidget {
+  const _FeaturedCarousel({required this.songs});
+  final List<Song> songs;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 220,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: songs.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        itemBuilder: (context, i) => GestureDetector(
+          onTap: () => audio.playSongs(songs, start: i),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Stack(
+              children: [
+                CoverArt(song: songs[i], size: 220, radius: 0),
+                const Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, Color(0xB3000000)],
+                        stops: [0.45, 1],
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: 14,
+                  right: 14,
+                  bottom: 12,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        songs[i].title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        songs[i].artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

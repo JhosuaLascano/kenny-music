@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:file_picker/file_picker.dart';
@@ -132,8 +133,6 @@ class PlayerScreen extends StatefulWidget {
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
-  double? _dragValue;
-
   PlayerRoute? get _route {
     final r = ModalRoute.of(context);
     return r is PlayerRoute ? r : null;
@@ -169,7 +168,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     ),
                   ),
                 ),
-                if (store.playerLayout == 'full') FullCoverLayer(song: song),
+                if (store.playerLayout == 'full' ||
+                    store.playerLayout == 'poster')
+                  FullCoverLayer(
+                    song: song,
+                    poster: store.playerLayout == 'poster',
+                  ),
                 SafeArea(
                   child: song == null
                       ? Center(
@@ -277,9 +281,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   children: [
                     Marquee(
                       song.title,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w500,
+                      // Estilo "Mínimo": título enorme.
+                      style: TextStyle(
+                        fontSize: store.playerLayout == 'minimal' ? 34 : 22,
+                        fontWeight: store.playerLayout == 'minimal'
+                            ? FontWeight.w800
+                            : FontWeight.w500,
                         color: Colors.white,
                       ),
                     ),
@@ -339,71 +346,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
           _LyricPreview(onTap: () => _openLyrics(context)),
           const Spacer(flex: 2),
           // Barra de progreso
-          StreamBuilder<Duration>(
-            stream: audio.positionTicks,
-            builder: (context, _) {
-              final dur =
-                  audio.duration ?? Duration(milliseconds: song.durationMs);
-              final max = dur.inMilliseconds.toDouble().clamp(
-                1.0,
-                double.infinity,
-              );
-              final value =
-                  (_dragValue ?? audio.position.inMilliseconds.toDouble())
-                      .clamp(0.0, max);
-              String two(Duration d) =>
-                  '${d.inMinutes.toString().padLeft(2, '0')}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
-              return Column(
-                children: [
-                  SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      activeTrackColor: Colors.white,
-                      inactiveTrackColor: Colors.white24,
-                      thumbColor: Colors.white,
-                      trackHeight: 3,
-                      thumbShape: RoundSliderThumbShape(
-                        enabledThumbRadius: _dragValue == null ? 7 : 10,
-                      ),
-                      trackShape: const RoundedRectSliderTrackShape(),
-                    ),
-                    child: SizedBox(
-                      height: 26,
-                      child: Slider(
-                        value: value,
-                        max: max,
-                        padding: EdgeInsets.zero,
-                        onChanged: (v) => setState(() => _dragValue = v),
-                        onChangeEnd: (v) {
-                          audio.seek(Duration(milliseconds: v.round()));
-                          setState(() => _dragValue = null);
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        two(Duration(milliseconds: value.round())),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Colors.white70,
-                        ),
-                      ),
-                      Text(
-                        '-${two(dur - Duration(milliseconds: value.round()))}',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              );
-            },
-          ),
+          _SeekBar(song: song),
           const Spacer(flex: 2),
           // Controles
           ValueListenableBuilder(
@@ -763,18 +706,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (c) => const SafeArea(
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      builder: (c) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.8,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            children: const [
               Text(
                 'Tema del reproductor',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
               ),
               SizedBox(height: 16),
+              PlayerStylePicker(),
+              SizedBox(height: 26),
               ThemePicker(),
             ],
           ),
@@ -809,17 +753,50 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     ),
                   ),
                 ),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Arrastra desde ≡ para cambiar el orden de las canciones.',
+                      style: TextStyle(color: kMuted, fontSize: 12),
+                    ),
+                  ),
+                ),
                 Expanded(
-                  child: ListView.builder(
+                  // Se puede arrastrar cada canción para cambiar el orden.
+                  child: ReorderableListView.builder(
                     itemCount: q.length,
+                    buildDefaultDragHandles: false,
+                    onReorderItem: audio.moveQueueItem,
                     itemBuilder: (context, i) {
                       final s = q[i];
                       final isCur = i == cur;
                       return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 20,
+                        key: ValueKey('q-$i-${s.id}'),
+                        contentPadding: const EdgeInsets.only(
+                          left: 4,
+                          right: 12,
                         ),
-                        leading: CoverArt(song: s, size: 44),
+                        leading: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ReorderableDragStartListener(
+                              index: i,
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 12,
+                                ),
+                                child: Icon(
+                                  Icons.drag_handle_rounded,
+                                  color: kMuted,
+                                ),
+                              ),
+                            ),
+                            CoverArt(song: s, size: 44),
+                          ],
+                        ),
                         title: Text(
                           s.title,
                           maxLines: 1,
@@ -996,9 +973,29 @@ class _Artwork extends StatelessWidget {
           );
           switch (store.playerLayout) {
             case 'full':
+            case 'poster':
               // La portada grande se dibuja detrás (FullCoverLayer); aquí
               // solo se deja el espacio.
               return SizedBox(height: size);
+            case 'minimal':
+              // Portada chica a la izquierda; el título va enorme más abajo.
+              return SizedBox(
+                height: size * 0.7,
+                child: Align(
+                  alignment: Alignment.bottomLeft,
+                  child: cinematicSwitch(
+                    currentKey: ValueKey('${song.id}-${song.cover}'),
+                    child: CoverArt(
+                      key: ValueKey('${song.id}-${song.cover}'),
+                      song: song,
+                      size: size * 0.42,
+                      radius: 12,
+                    ),
+                  ),
+                ),
+              );
+            case 'lyrics':
+              return _InlineLyrics(song: song, height: size);
             case 'visual':
               return SizedBox(
                 height: size,
@@ -1046,16 +1043,9 @@ class _Artwork extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 380),
-                  switchInCurve: Curves.easeOutBack,
-                  transitionBuilder: (child, a) => FadeTransition(
-                    opacity: a,
-                    child: ScaleTransition(
-                      scale: Tween(begin: 0.92, end: 1.0).animate(a),
-                      child: child,
-                    ),
-                  ),
+                // Transición de cine al cambiar de canción.
+                child: cinematicSwitch(
+                  currentKey: ValueKey('${song.id}-${song.cover}'),
                   child: CoverArt(
                     key: ValueKey('${song.id}-${song.cover}'),
                     song: song,
@@ -1074,8 +1064,11 @@ class _Artwork extends StatelessWidget {
 /// Estilo "Portada completa": la portada ocupa toda la parte de arriba y se
 /// funde con el fondo hacia abajo.
 class FullCoverLayer extends StatelessWidget {
-  const FullCoverLayer({super.key, required this.song});
+  const FullCoverLayer({super.key, required this.song, this.poster = false});
   final Song? song;
+
+  /// true = estilo "Póster": la portada llena toda la pantalla.
+  final bool poster;
 
   @override
   Widget build(BuildContext context) {
@@ -1086,13 +1079,15 @@ class FullCoverLayer extends StatelessWidget {
       left: 0,
       right: 0,
       top: 0,
-      height: h * 0.62,
+      height: poster ? h : h * 0.62,
       child: ShaderMask(
-        shaderCallback: (r) => const LinearGradient(
+        shaderCallback: (r) => LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Colors.white, Colors.white, Colors.transparent],
-          stops: [0, 0.55, 1],
+          colors: poster
+              ? const [Colors.white, Color(0xB3FFFFFF), Color(0x40FFFFFF)]
+              : const [Colors.white, Colors.white, Colors.transparent],
+          stops: poster ? const [0, 0.5, 1] : const [0, 0.55, 1],
         ).createShader(r),
         blendMode: BlendMode.dstIn,
         child: AnimatedSwitcher(
@@ -1221,4 +1216,346 @@ class _BarsPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_BarsPainter old) => true;
+}
+
+/// Barra de progreso para adelantar o regresar, en 3 estilos (Ajustes →
+/// Reproducción): fina con punto, cápsula que crece y onda.
+class _SeekBar extends StatefulWidget {
+  const _SeekBar({required this.song});
+  final Song song;
+
+  @override
+  State<_SeekBar> createState() => _SeekBarState();
+}
+
+class _SeekBarState extends State<_SeekBar> {
+  double? _drag; // milisegundos mientras se arrastra
+
+  String _two(Duration d) =>
+      '${d.inMinutes.toString().padLeft(2, '0')}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
+
+  void _seekTo(double ms) {
+    audio.seek(Duration(milliseconds: ms.round()));
+    setState(() => _drag = null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = accentOf(context);
+    return ListenableBuilder(
+      listenable: store,
+      builder: (context, _) => StreamBuilder<Duration>(
+        stream: audio.positionTicks,
+        builder: (context, _) {
+          final dur =
+              audio.duration ?? Duration(milliseconds: widget.song.durationMs);
+          final max = dur.inMilliseconds.toDouble().clamp(1.0, double.infinity);
+          final value = (_drag ?? audio.position.inMilliseconds.toDouble())
+              .clamp(0.0, max);
+          final frac = value / max;
+          final dragging = _drag != null;
+          final times = Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _two(Duration(milliseconds: value.round())),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: dragging ? Colors.white : Colors.white70,
+                  fontWeight: dragging ? FontWeight.w700 : FontWeight.w400,
+                ),
+              ),
+              Text(
+                '-${_two(dur - Duration(milliseconds: value.round()))}',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: dragging ? Colors.white : Colors.white70,
+                  fontWeight: dragging ? FontWeight.w700 : FontWeight.w400,
+                ),
+              ),
+            ],
+          );
+
+          // Gestos comunes para cápsula y onda: tocar o arrastrar para saltar.
+          Widget touchable(Widget child) => LayoutBuilder(
+            builder: (context, c) {
+              double at(double x) => (x / c.maxWidth).clamp(0.0, 1.0) * max;
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onHorizontalDragStart: (d) =>
+                    setState(() => _drag = at(d.localPosition.dx)),
+                onHorizontalDragUpdate: (d) =>
+                    setState(() => _drag = at(d.localPosition.dx)),
+                onHorizontalDragEnd: (_) => _seekTo(_drag ?? value),
+                onTapDown: (d) =>
+                    setState(() => _drag = at(d.localPosition.dx)),
+                onTapUp: (_) => _seekTo(_drag ?? value),
+                onTapCancel: () => setState(() => _drag = null),
+                child: child,
+              );
+            },
+          );
+
+          switch (store.progressStyle) {
+            case 'capsule':
+              return Column(
+                children: [
+                  touchable(
+                    SizedBox(
+                      height: 30,
+                      child: Center(
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 160),
+                          curve: Curves.easeOut,
+                          height: dragging ? 14 : 6,
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          alignment: Alignment.centerLeft,
+                          child: FractionallySizedBox(
+                            widthFactor: frac,
+                            heightFactor: 1,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: dragging
+                                    ? Colors.white
+                                    : Colors.white.withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(7),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  times,
+                ],
+              );
+            case 'wave':
+              return Column(
+                children: [
+                  touchable(
+                    SizedBox(
+                      height: 44,
+                      width: double.infinity,
+                      child: CustomPaint(
+                        painter: _WavePainter(
+                          seed: widget.song.id.hashCode,
+                          progress: frac,
+                          played: accent,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  times,
+                ],
+              );
+            default:
+              return Column(
+                children: [
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: Colors.white,
+                      inactiveTrackColor: Colors.white24,
+                      thumbColor: Colors.white,
+                      trackHeight: 3,
+                      thumbShape: RoundSliderThumbShape(
+                        enabledThumbRadius: dragging ? 10 : 7,
+                      ),
+                      trackShape: const RoundedRectSliderTrackShape(),
+                    ),
+                    child: SizedBox(
+                      height: 26,
+                      child: Slider(
+                        value: value,
+                        max: max,
+                        padding: EdgeInsets.zero,
+                        onChanged: (v) => setState(() => _drag = v),
+                        onChangeEnd: _seekTo,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  times,
+                ],
+              );
+          }
+        },
+      ),
+    );
+  }
+}
+
+/// Barritas tipo nota de voz (siempre iguales para la misma canción).
+class _WavePainter extends CustomPainter {
+  _WavePainter({
+    required this.seed,
+    required this.progress,
+    required this.played,
+  });
+  final int seed;
+  final double progress;
+  final Color played;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const n = 48;
+    const gap = 3.0;
+    final w = (size.width - gap * (n - 1)) / n;
+    final rnd = math.Random(seed);
+    final on = Paint()..color = played;
+    final off = Paint()..color = Colors.white.withValues(alpha: 0.35);
+    for (var i = 0; i < n; i++) {
+      final shape = 0.35 + 0.65 * (math.sin(i * 0.45 + seed % 7) * 0.5 + 0.5);
+      final h =
+          size.height *
+          (0.15 + 0.85 * shape * (0.55 + 0.45 * rnd.nextDouble()));
+      final x = i * (w + gap);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, (size.height - h) / 2, w, h),
+          Radius.circular(w / 2),
+        ),
+        (i + 0.5) / n <= progress ? on : off,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WavePainter old) =>
+      old.progress != progress || old.seed != seed || old.played != played;
+}
+
+/// Transición "de cine" al cambiar de canción: la portada anterior se encoge,
+/// se difumina y se desvanece; la nueva llega un poco más grande y se enfoca.
+Widget cinematicSwitch({required Key currentKey, required Widget child}) {
+  return AnimatedSwitcher(
+    duration: const Duration(milliseconds: 650),
+    switchInCurve: Curves.easeOutCubic,
+    switchOutCurve: Curves.easeInCubic,
+    transitionBuilder: (c, a) {
+      final incoming = c.key == currentKey;
+      return AnimatedBuilder(
+        animation: a,
+        child: c,
+        builder: (context, child) {
+          final t = a.value; // 0 → 1 al entrar; 1 → 0 al salir
+          final scale = incoming ? 1.12 - 0.12 * t : 0.86 + 0.14 * t;
+          final blur = (1 - t) * 10;
+          return Opacity(
+            opacity: t.clamp(0.0, 1.0),
+            child: Transform.scale(
+              scale: scale,
+              child: blur < 0.3
+                  ? child
+                  : ImageFiltered(
+                      imageFilter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+                      child: child,
+                    ),
+            ),
+          );
+        },
+      );
+    },
+    child: child,
+  );
+}
+
+/// Estilo "Letra integrada": la letra avanza dentro del reproductor.
+class _InlineLyrics extends StatelessWidget {
+  const _InlineLyrics({required this.song, required this.height});
+  final Song song;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CoverArt(song: song, size: 56, radius: 10),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  song.album,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white60, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Expanded(
+            child: ListenableBuilder(
+              listenable: nowLyrics,
+              builder: (context, _) {
+                final l = nowLyrics.lyrics;
+                if (nowLyrics.loading) {
+                  return const Text(
+                    'Cargando la letra…',
+                    style: TextStyle(color: Colors.white60),
+                  );
+                }
+                if (l == null) {
+                  return const Text(
+                    'Letra no disponible',
+                    style: TextStyle(color: Colors.white60),
+                  );
+                }
+                return StreamBuilder<Duration>(
+                  stream: audio.positionTicks,
+                  builder: (context, _) {
+                    final cur = l.synced ? l.indexAt(audio.position) : -1;
+                    final start = math.min(
+                      math.max(0, cur - 1),
+                      math.max(0, l.lines.length - 1),
+                    );
+                    final shown = l.lines.skip(start).take(5).toList();
+                    return ClipRect(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (var i = 0; i < shown.length; i++)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: AnimatedDefaultTextStyle(
+                                duration: const Duration(milliseconds: 250),
+                                style: TextStyle(
+                                  fontSize: start + i == cur ? 20 : 16,
+                                  fontWeight: start + i == cur
+                                      ? FontWeight.w800
+                                      : FontWeight.w500,
+                                  color: start + i == cur
+                                      ? Colors.white
+                                      : (start + i < cur
+                                            ? Colors.white38
+                                            : Colors.white60),
+                                  height: 1.25,
+                                ),
+                                child: Text(
+                                  shown[i].text,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

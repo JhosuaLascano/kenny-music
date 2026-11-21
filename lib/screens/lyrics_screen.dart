@@ -163,47 +163,70 @@ class _LyricsScreenState extends State<LyricsScreen> {
         _userScrolledAt = DateTime.now();
         return false;
       },
-      child: ListView.builder(
-        controller: _scroll,
-        padding: EdgeInsets.fromLTRB(
-          24,
-          40,
-          24,
-          MediaQuery.sizeOf(context).height * 0.45,
+      // Margen arriba y abajo: las líneas se desvanecen en los bordes para
+      // que la letra no llene toda la pantalla.
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 36),
+        child: ShaderMask(
+          shaderCallback: (r) => const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.transparent,
+              Colors.white,
+              Colors.white,
+              Colors.transparent,
+            ],
+            stops: [0, 0.14, 0.82, 1],
+          ).createShader(r),
+          blendMode: BlendMode.dstIn,
+          child: _list(l),
         ),
-        itemCount: l.lines.length,
-        itemBuilder: (context, i) {
-          final line = l.lines[i];
-          final key = _keys.putIfAbsent(i, () => GlobalKey());
-          final Color color;
-          if (!l.synced) {
-            color = Colors.white;
-          } else if (i == _current) {
-            color = Colors.white;
-          } else if (i < _current) {
-            color = Colors.white.withValues(alpha: 0.35);
-          } else {
-            color = Colors.white.withValues(alpha: 0.55);
-          }
-          return GestureDetector(
-            key: key,
-            onTap: line.time == null ? null : () => audio.seek(line.time!),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 11),
-              child: AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 250),
-                style: TextStyle(
-                  fontSize: l.synced ? 26 : 20,
-                  height: 1.25,
-                  fontWeight: l.synced ? FontWeight.w800 : FontWeight.w600,
-                  color: color,
-                ),
-                child: Text(line.text),
-              ),
-            ),
-          );
-        },
       ),
+    );
+  }
+
+  Widget _list(Lyrics l) {
+    return ListView.builder(
+      controller: _scroll,
+      padding: EdgeInsets.fromLTRB(
+        28,
+        MediaQuery.sizeOf(context).height * 0.12,
+        28,
+        MediaQuery.sizeOf(context).height * 0.4,
+      ),
+      itemCount: l.lines.length,
+      itemBuilder: (context, i) {
+        final line = l.lines[i];
+        final key = _keys.putIfAbsent(i, () => GlobalKey());
+        final Color color;
+        if (!l.synced) {
+          color = Colors.white;
+        } else if (i == _current) {
+          color = Colors.white;
+        } else if (i < _current) {
+          color = Colors.white.withValues(alpha: 0.35);
+        } else {
+          color = Colors.white.withValues(alpha: 0.55);
+        }
+        return GestureDetector(
+          key: key,
+          onTap: line.time == null ? null : () => audio.seek(line.time!),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 250),
+              style: TextStyle(
+                fontSize: l.synced ? 24 : 19,
+                height: 1.22,
+                fontWeight: l.synced ? FontWeight.w800 : FontWeight.w600,
+                color: color,
+              ),
+              child: Text(line.text),
+            ),
+          ),
+        );
+      },
     );
   }
 
